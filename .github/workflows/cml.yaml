@@ -53,12 +53,11 @@ jobs:
         MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
       run: |
         python - <<'PY'
-        import os, mlflow
-        print("ENV MLFLOW_TRACKING_URI:", os.environ.get("MLFLOW_TRACKING_URI"))
-        mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI"))
-        print("mlflow.get_tracking_uri():", mlflow.get_tracking_uri())
-        with mlflow.start_run(run_name="sanity_check"):
+        import os, mlflow, textwrap
+        print("ENV URI:", repr(os.environ.get("MLFLOW_TRACKING_URI")))
+        mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+        print("get_tracking_uri():", mlflow.get_tracking_uri())
+        with mlflow.start_run(run_name="sanity_check_actions"):
             mlflow.log_param("sanity", "ok")
-        print("Sanity run logged.")
-        print("Artifact URI:", mlflow.get_artifact_uri())
+            print("Artifact URI:", mlflow.get_artifact_uri())
         PY
