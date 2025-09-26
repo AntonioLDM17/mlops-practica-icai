@@ -69,3 +69,6 @@ with mlflow.start_run():
     # Útil para debug: ¿a dónde está subiendo MLflow?
     print("Artifact URI:", mlflow.get_artifact_uri())
     # --- Fin reporte ---
+    # Clean up
+    if os.path.exists(out_png):
+        os.remove(out_png)
