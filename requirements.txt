@@ -6,3 +6,4 @@ mlflow==2.8.0
 matplotlib
 seaborn
 dagshub
+dvc-s3
