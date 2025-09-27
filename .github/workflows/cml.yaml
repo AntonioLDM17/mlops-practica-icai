@@ -54,3 +54,4 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: |
           python3 train.py
+          dvc repro
