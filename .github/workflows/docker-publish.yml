@@ -1,105 +1,106 @@
-name: Build & Push Docker images
+name: MLOps with CML
 
 on:
   workflow_dispatch:
   push:
     branches: [ master, main ]
-    tags:
-      - "v*"
+  pull_request:
 
 jobs:
-  docker:
+  train-and-report:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [api, web]
-    env:
-      REGISTRY: docker.io
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      # Solo API: traer model.pkl desde DVC
-      - name: Set up Python for DVC (only API)
-        if: matrix.service == 'api'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: DVC and Python setup
+        uses: iterative/setup-dvc@v1
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install DVC (only API)
-        if: matrix.service == 'api'
+      - name: Configure Git
         run: |
-          pip install --upgrade pip
-          pip install "dvc[s3]"
+          git config --global user.email "ci@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
 
-      - name: DVC pull model (only API)
-        if: matrix.service == 'api'
+      - name: Restore DVC Cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/dvc
+          key: dvc-cache-${{ hashFiles('dvc.yaml', 'dvc.lock') }}
+          restore-keys: |
+            dvc-cache-
+
+      # === PULL de datos/artifacts desde Dagshub (S3 compatible) ===
+      - name: DVC Pull (Dagshub S3)
         env:
           DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
           DAGSHUB_API_KEY:  ${{ secrets.DAGSHUB_API_KEY }}
+          DVC_S3_ENDPOINT:  https://dagshub.com/AntonioLDM17/mlops-practica-icai.s3
         run: |
+          # Asegura que existe el remoto 'origin'
+          dvc remote list || true
+          if ! dvc remote list | grep -q "^origin"; then
+            dvc remote add -f origin s3://dvc
+          fi
+
+          # Configurar endpoint y credenciales para S3 de Dagshub
+          dvc remote modify origin endpointurl "$DVC_S3_ENDPOINT"
+          dvc remote modify origin region us-east-1
           dvc remote modify origin --local access_key_id "$DAGSHUB_USERNAME"
           dvc remote modify origin --local secret_access_key "$DAGSHUB_API_KEY"
-          dvc pull -r origin
-          ls -lh model.pkl
+          dvc remote default origin
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          # Exportar también variables AWS (algunos backends boto las requieren)
+          export AWS_ACCESS_KEY_ID="$DAGSHUB_USERNAME"
+          export AWS_SECRET_ACCESS_KEY="$DAGSHUB_API_KEY"
+          export AWS_DEFAULT_REGION="us-east-1"
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+          # Pull de datos/outs (incluye model.pkl)
+          dvc pull -r origin -v
+          ls -lh || true
+          test -f model.pkl && echo "✅ model.pkl descargado" || echo "⚠️ model.pkl no está (se generará en train)"
 
-      - name: Login to Docker Hub
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyyaml
+
+      - name: Setup CML
+        uses: iterative/setup-cml@v1
+
+      - name: Run training script
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_API_KEY }}
+          MLFLOW_TRACKING_URI:      ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          # Entrena y registra; si no había model.pkl, lo crea
+          python train.py
+          # Garantiza coherencia de lock si el pipeline gestiona outs
+          dvc repro || true
+          dvc status
+
+      # === Publicación de imágenes en Docker Hub ===
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ env.DOCKERHUB_USER }}
-          password: ${{ env.DOCKERHUB_TOKEN }}
-
-      - name: Docker meta (API)
-        id: meta_api
-        if: matrix.service == 'api'
-        uses: docker/metadata-action@v5
-        with:
-          images: docker.io/${{ env.DOCKERHUB_USER }}/mlops-api
-          tags: |
-            type=raw,value=latest
-            type=sha
-            type=ref,event=tag
-
-      - name: Docker meta (WEB)
-        id: meta_web
-        if: matrix.service == 'web'
-        uses: docker/metadata-action@v5
-        with:
-          images: docker.io/${{ env.DOCKERHUB_USER }}/mlops-web
-          tags: |
-            type=raw,value=latest
-            type=sha
-            type=ref,event=tag
-
-      - name: Build & Push API image
-        if: matrix.service == 'api'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta_api.outputs.tags }}
-          labels: ${{ steps.meta_api.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-api:cache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-api:cache,mode=max
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build & Push WEB image
-        if: matrix.service == 'web'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile.web
-          push: true
-          tags: ${{ steps.meta_web.outputs.tags }}
-          labels: ${{ steps.meta_web.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-web:cache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-web:cache,mode=max
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/mlops-web:latest -f Dockerfile.web .
+          docker push     ${{ secrets.DOCKERHUB_USERNAME }}/mlops-web:latest
+
+      - name: Build & Push API image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/mlops-api:latest .
+          docker push     ${{ secrets.DOCKERHUB_USERNAME }}/mlops-api:latest
