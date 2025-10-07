@@ -53,7 +53,7 @@ jobs:
           pip install pyyaml
           pip install -r requirements.txt
 
-      - name: Setup of CML
+      - name: Setup CML
         uses: iterative/setup-cml@v1
 
       - name: Run training script
