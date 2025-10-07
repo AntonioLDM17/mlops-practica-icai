@@ -1,4 +1,4 @@
-name: MLOps with CML
+name: Docker MLOps
 
 on:
   workflow_dispatch:
