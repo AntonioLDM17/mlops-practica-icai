@@ -1,0 +1,121 @@
+name: Build & Push Docker images
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - "Dockerfile"
+      - "Dockerfile.web"
+      - "app.py"
+      - "app_web.py"
+      - "requirements.txt"
+      - "dvc.yaml"
+      - "params.yaml"
+      - ".dvc/**"
+  # Publica también cuando etiquetas una release (opcional)
+  tags:
+    - "v*"
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, web]
+    env:
+      REGISTRY: docker.io
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Solo para API: traer model.pkl desde DVC antes del build
+      - name: Set up Python for DVC (only API)
+        if: matrix.service == 'api'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install DVC (only API)
+        if: matrix.service == 'api'
+        run: |
+          pip install --upgrade pip
+          pip install "dvc[s3]"
+
+      - name: DVC pull model (only API)
+        if: matrix.service == 'api'
+        env:
+          DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          DAGSHUB_API_KEY:  ${{ secrets.DAGSHUB_API_KEY }}
+        run: |
+          # Asegura que el remoto S3 de DagsHub está configurado correctamente (si no viene ya en .dvc/config)
+          dvc remote modify origin --local access_key_id "$DAGSHUB_USERNAME"
+          dvc remote modify origin --local secret_access_key "$DAGSHUB_API_KEY"
+          dvc pull -r origin
+          ls -lh model.pkl
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.DOCKERHUB_USER }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      # Etiquetas y metadatos
+      - name: Docker meta (API)
+        id: meta_api
+        if: matrix.service == 'api'
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            docker.io/${{ env.DOCKERHUB_USER }}/mlops-api
+          tags: |
+            type=raw,value=latest
+            type=sha
+            type=ref,event=tag
+
+      - name: Docker meta (WEB)
+        id: meta_web
+        if: matrix.service == 'web'
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            docker.io/${{ env.DOCKERHUB_USER }}/mlops-web
+          tags: |
+            type=raw,value=latest
+            type=sha
+            type=ref,event=tag
+
+      # Construir y subir API
+      - name: Build & Push API image
+        if: matrix.service == 'api'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta_api.outputs.tags }}
+          labels: ${{ steps.meta_api.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-api:cache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-api:cache,mode=max
+
+      # Construir y subir WEB
+      - name: Build & Push WEB image
+        if: matrix.service == 'web'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.web
+          push: true
+          tags: ${{ steps.meta_web.outputs.tags }}
+          labels: ${{ steps.meta_web.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-web:cache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-web:cache,mode=max
