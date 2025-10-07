@@ -12,9 +12,8 @@ on:
       - "dvc.yaml"
       - "params.yaml"
       - ".dvc/**"
-  # Publica también cuando etiquetas una release (opcional)
-  tags:
-    - "v*"
+    tags:
+      - "v*"
 
 jobs:
   docker:
@@ -31,7 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Solo para API: traer model.pkl desde DVC antes del build
+      # Solo API: traer model.pkl desde DVC
       - name: Set up Python for DVC (only API)
         if: matrix.service == 'api'
         uses: actions/setup-python@v5
@@ -50,7 +49,6 @@ jobs:
           DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
           DAGSHUB_API_KEY:  ${{ secrets.DAGSHUB_API_KEY }}
         run: |
-          # Asegura que el remoto S3 de DagsHub está configurado correctamente (si no viene ya en .dvc/config)
           dvc remote modify origin --local access_key_id "$DAGSHUB_USERNAME"
           dvc remote modify origin --local secret_access_key "$DAGSHUB_API_KEY"
           dvc pull -r origin
@@ -69,14 +67,12 @@ jobs:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ env.DOCKERHUB_TOKEN }}
 
-      # Etiquetas y metadatos
       - name: Docker meta (API)
         id: meta_api
         if: matrix.service == 'api'
         uses: docker/metadata-action@v5
         with:
-          images: |
-            docker.io/${{ env.DOCKERHUB_USER }}/mlops-api
+          images: docker.io/${{ env.DOCKERHUB_USER }}/mlops-api
           tags: |
             type=raw,value=latest
             type=sha
@@ -87,14 +83,12 @@ jobs:
         if: matrix.service == 'web'
         uses: docker/metadata-action@v5
         with:
-          images: |
-            docker.io/${{ env.DOCKERHUB_USER }}/mlops-web
+          images: docker.io/${{ env.DOCKERHUB_USER }}/mlops-web
           tags: |
             type=raw,value=latest
             type=sha
             type=ref,event=tag
 
-      # Construir y subir API
       - name: Build & Push API image
         if: matrix.service == 'api'
         uses: docker/build-push-action@v6
@@ -107,7 +101,6 @@ jobs:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-api:cache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.DOCKERHUB_USER }}/mlops-api:cache,mode=max
 
-      # Construir y subir WEB
       - name: Build & Push WEB image
         if: matrix.service == 'web'
         uses: docker/build-push-action@v6
