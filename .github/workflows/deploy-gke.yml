@@ -1,0 +1,66 @@
+name: Deploy to GKE (API)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy-to-gke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # necesario para auth action si usas WIF (no es tu caso, pero seguro)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Autenticación con GCP usando tu JSON en el secret GCP_SA_KEY
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud CLI and kubectl
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: 'latest'
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials \
+            "${{ vars.GKE_CLUSTER }}" \
+            --zone "${{ vars.GKE_ZONE }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}"
+
+      # (Opcional) DVC pull si tu despliegue necesita artefactos locales.
+      # Para esta API Dockerizada no hace falta, porque la imagen ya contiene el modelo.
+      # Lo dejo comentado como referencia:
+      # - name: DVC Pull
+      #   env:
+      #     DAGSHUB_API_KEY: ${{ secrets.DAGSHUB_API_KEY }}
+      #   run: |
+      #     dvc remote modify origin --local access_key_id $DAGSHUB_API_KEY
+      #     dvc remote modify origin --local secret_access_key $DAGSHUB_API_KEY
+      #     dvc pull -r origin
+
+      # Si quieres publicar la imagen a GCR desde Actions (en vez de Docker Hub):
+      - name: Configure Docker to use GCR
+        run: gcloud auth configure-docker
+
+      - name: Build and Push Docker Image to GCR
+        run: |
+          docker build -t gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-api:latest .
+          docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-api:latest
+
+      - name: Deploy Manifests
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      - name: Show resources
+        run: |
+          kubectl get deploy,svc,pods -o wide
