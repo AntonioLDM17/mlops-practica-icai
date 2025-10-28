@@ -3,7 +3,7 @@ name: Deploy to GKE (API)
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches: ["main", "master"]
 
 jobs:
   deploy-to-gke:
