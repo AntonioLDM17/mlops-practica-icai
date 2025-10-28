@@ -22,6 +22,14 @@ def predict():
         return jsonify({'prediction': int(prediction[0])})
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+@app.get("/health")
+def health():
+    return jsonify(status="ok"), 200
+
+@app.get("/ready")
+def ready():
+    # si quieres, aquí puedes chequear si el modelo está cargado, etc.
+    return jsonify(ready=True), 200
 
 if __name__ == '__main__':
     # Servidor simple para la práctica (no producción)
