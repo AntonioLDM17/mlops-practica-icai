@@ -1,0 +1,13 @@
+# web-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlops-web-service
+spec:
+  selector:
+    app: mlops-web
+  ports:
+    - protocol: TCP
+      port: 80        # puerto público del LB
+      targetPort: 8501
+  type: LoadBalancer  # visible públicamente

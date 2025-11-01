@@ -1,0 +1,13 @@
+# api-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlops-api-service
+spec:
+  selector:
+    app: mlops-api
+  ports:
+    - protocol: TCP
+      port: 5000        # puerto interno del servicio
+      targetPort: 5000  # puerto del contenedor
+  type: ClusterIP       # SOLO interno al clúster

@@ -1,0 +1,26 @@
+# web-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlops-web-deployment
+  labels:
+    app: mlops-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlops-web
+  template:
+    metadata:
+      labels:
+        app: mlops-web
+    spec:
+      containers:
+        - name: mlops-web
+          image: gcr.io/icai2025-mlops/mlops-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8501
+          env:
+            - name: API_URL
+              value: "http://mlops-api-service:5000/predict"
