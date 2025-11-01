@@ -5,8 +5,8 @@ metadata:
 spec:
   selector:
     app: mlops-api
-  type: LoadBalancer
   ports:
     - protocol: TCP
-      port: 80        # puerto público (externo)
-      targetPort: 5000  # puerto del contenedor
+      port: 80
+      targetPort: 5000
+  type: LoadBalancer
