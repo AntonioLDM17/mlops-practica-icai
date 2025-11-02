@@ -125,8 +125,11 @@ jobs:
       # --- DESPLEGAR EN GKE (API + WEB) ---
       - name: Deploy to GKE
         run: |
+          # Despliegue de la API (interno)
           kubectl apply -f api-deployment.yaml
           kubectl apply -f api-service.yaml
+
+          # Despliegue de la Web (pública)
           kubectl apply -f web-deployment.yaml
           kubectl apply -f web-service.yaml
 
