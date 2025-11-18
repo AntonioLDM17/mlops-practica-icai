@@ -106,21 +106,43 @@ jobs:
         run: |
           gcloud auth configure-docker
 
-      # --- CONSTRUIR Y SUBIR IMAGEN DE LA API (mlops-api) ---
-      - name: Build and Push API Docker Image
+      # --- CONSTRUIR, ESCANEAR Y SUBIR IMAGEN DE LA API (mlops-api) ---
+      - name: Build API Docker Image
+        id: build_api
         run: |
-          # 1. Construir la imagen de la API usando Dockerfile
-          docker build -t gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-api:latest .
-          # 2. Subir la imagen de la API a GCR
-          docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-api:latest
+          IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-api:latest"
+          docker build -t $IMAGE_NAME .
+          echo "IMAGE_API=$IMAGE_NAME" >> $GITHUB_ENV
 
-      # --- CONSTRUIR Y SUBIR IMAGEN DE LA WEB (mlops-web) ---
-      - name: Build and Push Web Docker Image
+      - name: Trivy Scan for API Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_API }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      - name: Push API Docker Image
+        run: docker push ${{ env.IMAGE_API }}
+
+      # --- CONSTRUIR, ESCANEAR Y SUBIR IMAGEN DE LA WEB (mlops-web) ---
+      - name: Build Web Docker Image
+        id: build_web
         run: |
-          # 1. Construir la imagen de la WEB usando Dockerfile.web
-          docker build -t gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-web:latest -f Dockerfile.web .
-          # 2. Subir la imagen de la WEB a GCR
-          docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-web:latest
+          IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-web:latest"
+          docker build -t $IMAGE_NAME -f Dockerfile.web .
+          echo "IMAGE_WEB=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Trivy Scan for Web Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_WEB }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      - name: Push Web Docker Image
+        run: docker push ${{ env.IMAGE_WEB }}
 
       # --- DESPLEGAR EN GKE (API + WEB) ---
       - name: Deploy to GKE
