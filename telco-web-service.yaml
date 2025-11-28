@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlops-telco-web-service
+spec:
+  selector:
+    app: mlops-telco-web
+  ports:
+    - protocol: TCP
+      port: 80         # puerto público del LB
+      targetPort: 8502 # puerto del contenedor
+  type: LoadBalancer   # visible públicamente

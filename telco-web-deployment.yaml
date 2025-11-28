@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlops-telco-web-deployment
+  labels:
+    app: mlops-telco-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlops-telco-web
+  template:
+    metadata:
+      labels:
+        app: mlops-telco-web
+    spec:
+      containers:
+        - name: mlops-telco-web
+          image: gcr.io/icai2025-mlops/mlops-telco-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8502
+          env:
+            - name: TELCO_API_URL
+              value: "http://mlops-telco-api-service:5001"

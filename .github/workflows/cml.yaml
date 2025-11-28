@@ -109,56 +109,102 @@ jobs:
         run: |
           gcloud auth configure-docker
 
-      # --- CONSTRUIR, ESCANEAR Y SUBIR IMAGEN DE LA API (mlops-api) ---
-      - name: Build API Docker Image
-        id: build_api
+      # --- API IRIS (mlops-api) ---
+      - name: Build API Docker Image (Iris)
+        id: build_api_iris
         run: |
           IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-api:latest"
           docker build -t $IMAGE_NAME .
-          echo "IMAGE_API=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "IMAGE_API_IRIS=$IMAGE_NAME" >> $GITHUB_ENV
 
-      - name: Trivy Scan for API Image
+      - name: Trivy Scan for API Iris Image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE_API }}
+          image-ref: ${{ env.IMAGE_API_IRIS }}
           format: 'table'
           exit-code: '1'
           severity: 'CRITICAL'
 
-      - name: Push API Docker Image
-        run: docker push ${{ env.IMAGE_API }}
+      - name: Push API Iris Docker Image
+        run: docker push ${{ env.IMAGE_API_IRIS }}
 
-      # --- CONSTRUIR, ESCANEAR Y SUBIR IMAGEN DE LA WEB (mlops-web) ---
-      - name: Build Web Docker Image
-        id: build_web
+      # --- WEB IRIS (mlops-web) ---
+      - name: Build Web Docker Image (Iris)
+        id: build_web_iris
         run: |
           IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-web:latest"
           docker build -t $IMAGE_NAME -f Dockerfile.web .
-          echo "IMAGE_WEB=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "IMAGE_WEB_IRIS=$IMAGE_NAME" >> $GITHUB_ENV
 
-      - name: Trivy Scan for Web Image
+      - name: Trivy Scan for Web Iris Image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE_WEB }}
+          image-ref: ${{ env.IMAGE_WEB_IRIS }}
           format: 'table'
           exit-code: '1'
           severity: 'CRITICAL'
 
-      - name: Push Web Docker Image
-        run: docker push ${{ env.IMAGE_WEB }}
+      - name: Push Web Iris Docker Image
+        run: docker push ${{ env.IMAGE_WEB_IRIS }}
 
-      # --- DESPLEGAR EN GKE (API + WEB + PodMonitoring) ---
+      # --- API TELCO (mlops-telco-api) ---
+      - name: Build Telco API Docker Image
+        id: build_api_telco
+        run: |
+          IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-telco-api:latest"
+          docker build -t $IMAGE_NAME -f Dockerfile.telco .
+          echo "IMAGE_API_TELCO=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Trivy Scan for Telco API Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_API_TELCO }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      - name: Push Telco API Docker Image
+        run: docker push ${{ env.IMAGE_API_TELCO }}
+
+      # --- WEB TELCO (mlops-telco-web) ---
+      - name: Build Telco Web Docker Image
+        id: build_web_telco
+        run: |
+          IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-telco-web:latest"
+          docker build -t $IMAGE_NAME -f Dockerfile.web_telco .
+          echo "IMAGE_WEB_TELCO=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Trivy Scan for Telco Web Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_WEB_TELCO }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      - name: Push Telco Web Docker Image
+        run: docker push ${{ env.IMAGE_WEB_TELCO }}
+
+      # --- DESPLEGAR EN GKE (Iris + Telco + PodMonitoring) ---
       - name: Deploy to GKE
         run: |
-          # Despliegue de la API (interno)
+          # API Iris (interno)
           kubectl apply -f api-deployment.yaml
           kubectl apply -f api-service.yaml
 
-          # Despliegue de la Web (pública)
+          # Web Iris (pública)
           kubectl apply -f web-deployment.yaml
           kubectl apply -f web-service.yaml
 
-          # Recurso de monitorización de Pods para Managed Prometheus
+          # API Telco (interna)
+          kubectl apply -f telco-api-deployment.yaml
+          kubectl apply -f telco-api-service.yaml
+
+          # Web Telco (pública, XAI)
+          kubectl apply -f telco-web-deployment.yaml
+          kubectl apply -f telco-web-service.yaml
+
+          # PodMonitoring (solo Iris, de momento)
           kubectl apply -f pod-monitoring.yaml
 
       - name: Show Services and Pods
