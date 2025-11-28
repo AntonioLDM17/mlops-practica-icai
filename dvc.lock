@@ -66,13 +66,13 @@ stages:
       isexec: true
     - path: train_telco.py
       hash: md5
-      md5: 56fcb6f59447fc0b7341854054eed472
-      size: 6459
+      md5: 32f3bc1f25f535a3f73fc16f0def1c9f
+      size: 6463
       isexec: true
     outs:
     - path: model_telco.pkl
       hash: md5
-      md5: 77c97ab77801bf05043dd055bad9f35b
+      md5: b0db98ce16085a68f0be016e0d63313c
       size: 16220975
       isexec: true
     - path: telco_metrics.json

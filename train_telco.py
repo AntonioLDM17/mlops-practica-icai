@@ -128,7 +128,7 @@ background = X_train.sample(
 )
 
 # Guardamos el background en disco (valores + nombres de columnas)
-np.save("artifacts_telco/telco_background.npy", background.values)
+background.to_csv("artifacts_telco/telco_background.csv", index=False)
 
 # ========= 8) PERMUTATION FEATURE IMPORTANCE (GLOBAL) =========
 perm_result = permutation_importance(
