@@ -2,7 +2,8 @@ stages:
   prepare:
     cmd: echo "Verificando que los datos existen..."
     deps:
-    - data/iris_dataset.csv
+      - data/iris_dataset.csv
+
   train:
     cmd: python train.py --n_estimators ${train.n_estimators}
     deps:
@@ -16,3 +17,19 @@ stages:
       - mlflow_metrics.json
     params:
       - train.n_estimators
+
+  prepare_telco:
+    cmd: echo "Verificando que el dataset Telco existe..."
+    deps:
+      - data/telco_churn.csv
+
+  train_telco:
+    cmd: python train_telco.py
+    deps:
+      - train_telco.py
+      - requirements.txt
+      - data/telco_churn.csv
+    outs:
+      - model_telco.pkl
+    metrics:
+      - telco_metrics.json

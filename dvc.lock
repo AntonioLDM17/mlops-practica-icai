@@ -16,8 +16,8 @@ stages:
       size: 2795
     - path: requirements.txt
       hash: md5
-      md5: 718e6b7232ed720f052ebd9f4739d4f4
-      size: 105
+      md5: 77a0811f39d2e28b1ecc08714362f6ab
+      size: 195
     - path: train.py
       hash: md5
       md5: 17e019fde9eba3c2ef462bb44ab0d9d0
@@ -38,6 +38,39 @@ stages:
       isexec: true
     - path: model.pkl
       hash: md5
-      md5: 6da584344f44cbafb55f1f4bfa50180f
+      md5: 98ecc53f6042dbe2fca63d308268da16
       size: 530177
+      isexec: true
+  prepare_telco:
+    cmd: echo "Verificando que el dataset Telco existe..."
+    deps:
+    - path: data/telco_churn.csv
+      hash: md5
+      md5: 0f9de68e012bd3aed5fa7cdc9fc421af
+      size: 977501
+  train_telco:
+    cmd: python train_telco.py
+    deps:
+    - path: data/telco_churn.csv
+      hash: md5
+      md5: 0f9de68e012bd3aed5fa7cdc9fc421af
+      size: 977501
+    - path: requirements.txt
+      hash: md5
+      md5: 77a0811f39d2e28b1ecc08714362f6ab
+      size: 195
+    - path: train_telco.py
+      hash: md5
+      md5: 54cb5c0e2622510f198d08c8c52265ae
+      size: 2958
+    outs:
+    - path: model_telco.pkl
+      hash: md5
+      md5: 1b102df4bf26aed4fc9cb917f5faec47
+      size: 16220975
+      isexec: true
+    - path: telco_metrics.json
+      hash: md5
+      md5: 685dc8491d776b18f53a7a35be27f519
+      size: 63
       isexec: true
