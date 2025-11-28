@@ -127,9 +127,39 @@ background = X_train.sample(
     random_state=RANDOM_STATE
 )
 
-# Guardamos el background en disco (valores + nombres de columnas)
-background.to_csv("artifacts_telco/telco_background.csv", index=False)
+# Intentar cargar el background desde CSV (generado en train_telco)
+# Si no existe (por ejemplo, en un despliegue donde DVC no lo haya materializado bien),
+# construimos un background por defecto en memoria para que la API NO reviente.
+try:
+    background_df = pd.read_csv("artifacts_telco/telco_background.csv")
+    print("✅ Background Telco cargado desde artifacts_telco/telco_background.csv")
+except FileNotFoundError:
+    print("⚠️ telco_background.csv no encontrado. Usando background por defecto en memoria.")
 
+    default_bg = {
+        "gender": "Female",
+        "SeniorCitizen": 0,
+        "Partner": "Yes",
+        "Dependents": "No",
+        "tenure": 12,
+        "PhoneService": "Yes",
+        "MultipleLines": "No",
+        "InternetService": "Fiber optic",
+        "OnlineSecurity": "No",
+        "OnlineBackup": "No",
+        "DeviceProtection": "No",
+        "TechSupport": "No",
+        "StreamingTV": "No",
+        "StreamingMovies": "No",
+        "Contract": "Month-to-month",
+        "PaperlessBilling": "Yes",
+        "PaymentMethod": "Electronic check",
+        "MonthlyCharges": 70.0,
+        "TotalCharges": 1000.0,
+    }
+
+    # Construimos un DataFrame con las MISMAS columnas que usa el modelo
+    background_df = pd.DataFrame([default_bg])
 # ========= 8) PERMUTATION FEATURE IMPORTANCE (GLOBAL) =========
 perm_result = permutation_importance(
     best_model,
