@@ -9,7 +9,6 @@ data/iris_dataset.csv
 data/telco_churn.csv
 
 # Artefactos Telco XAI:
-artifacts_telco/telco_background.csv
 artifacts_telco/*
 !artifacts_telco/*.json
 !artifacts_telco/*.npy

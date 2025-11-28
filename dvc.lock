@@ -70,9 +70,14 @@ stages:
       size: 6463
       isexec: true
     outs:
+    - path: artifacts_telco/telco_background.csv
+      hash: md5
+      md5: 7bd50c6e53359e0f06dfdbbc32f7eb60
+      size: 24461
+      isexec: true
     - path: model_telco.pkl
       hash: md5
-      md5: b0db98ce16085a68f0be016e0d63313c
+      md5: dd86490219ad89162b62085dc7e4b3d2
       size: 16220975
       isexec: true
     - path: telco_metrics.json
