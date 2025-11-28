@@ -14,21 +14,24 @@ stages:
       hash: md5
       md5: ae244df326bd230685a3e47e0521ad56
       size: 2795
+      isexec: true
     - path: requirements.txt
       hash: md5
-      md5: 77a0811f39d2e28b1ecc08714362f6ab
-      size: 195
+      md5: b27055265798b4992ef85d1cdd4fe56a
+      size: 205
+      isexec: true
     - path: train.py
       hash: md5
       md5: 17e019fde9eba3c2ef462bb44ab0d9d0
       size: 2783
+      isexec: true
     params:
       params.yaml:
         train.n_estimators: 300
     outs:
     - path: confusion_matrix.png
       hash: md5
-      md5: 4e2d2cf964d77a4a4baca2d9658ae092
+      md5: 6b60824643e1d31907eff1a4a0dc0429
       size: 20819
       isexec: true
     - path: mlflow_metrics.json
@@ -38,7 +41,7 @@ stages:
       isexec: true
     - path: model.pkl
       hash: md5
-      md5: 98ecc53f6042dbe2fca63d308268da16
+      md5: eaae2104d13ec7ff1298b1b9e6a42e02
       size: 530177
       isexec: true
   prepare_telco:
@@ -55,18 +58,21 @@ stages:
       hash: md5
       md5: 0f9de68e012bd3aed5fa7cdc9fc421af
       size: 977501
+      isexec: true
     - path: requirements.txt
       hash: md5
-      md5: 77a0811f39d2e28b1ecc08714362f6ab
-      size: 195
+      md5: b27055265798b4992ef85d1cdd4fe56a
+      size: 205
+      isexec: true
     - path: train_telco.py
       hash: md5
-      md5: 54cb5c0e2622510f198d08c8c52265ae
-      size: 2958
+      md5: 56fcb6f59447fc0b7341854054eed472
+      size: 6459
+      isexec: true
     outs:
     - path: model_telco.pkl
       hash: md5
-      md5: 1b102df4bf26aed4fc9cb917f5faec47
+      md5: 77c97ab77801bf05043dd055bad9f35b
       size: 16220975
       isexec: true
     - path: telco_metrics.json
