@@ -19,4 +19,5 @@ spec:
           image: gcr.io/icai2025-mlops/mlops-api:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 5000
+            - name: metrics        # 👈 NUEVO NOMBRE DEL PUERTO
+              containerPort: 5000

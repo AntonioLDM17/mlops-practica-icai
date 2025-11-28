@@ -13,3 +13,4 @@ requests
 pyarrow>=14.0.1
 gunicorn>=22.0.0
 setuptools>=70.0.0
+prometheus-client
