@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app_web_telco.py .
+
+# La web Telco la servimos en 8502 para no chocar con la web Iris (8501)
+EXPOSE 8502
+
+CMD ["streamlit", "run", "app_web_telco.py", "--server.port=8502", "--server.address=0.0.0.0"]
