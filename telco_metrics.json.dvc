@@ -1,0 +1,6 @@
+outs:
+- md5: 685dc8491d776b18f53a7a35be27f519
+  size: 63
+  isexec: true
+  hash: md5
+  path: telco_metrics.json
