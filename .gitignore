@@ -15,4 +15,4 @@ artifacts_telco/*
 !artifacts_telco/*.npy
 !artifacts_telco/.gitkeep
 
-cosas_a_añadir.md
+things_to_add.md
