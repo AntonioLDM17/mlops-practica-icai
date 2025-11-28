@@ -31,6 +31,5 @@ stages:
       - data/telco_churn.csv
     outs:
       - model_telco.pkl
-      - artifacts_telco/telco_background.csv
     metrics:
       - telco_metrics.json
