@@ -99,6 +99,12 @@ jobs:
           dvc remote modify origin --local access_key_id $DAGSHUB_API_KEY
           dvc remote modify origin --local secret_access_key $DAGSHUB_API_KEY
           dvc pull -r origin
+          
+      - name: Debug Telco artifacts
+        run: |
+          ls -R
+          ls -l artifacts_telco || echo "artifacts_telco no existe"
+          test -f artifacts_telco/telco_background.csv && echo "✅ CSV existe" || echo "❌ CSV NO encontrado"
 
       - name: Install dependencies
         run: |
