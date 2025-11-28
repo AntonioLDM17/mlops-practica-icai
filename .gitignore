@@ -11,3 +11,4 @@ artifacts_telco/*
 # Ignorar datasets
 data/iris_dataset.csv
 data/telco_churn.csv
+cosas_a_añadir.md

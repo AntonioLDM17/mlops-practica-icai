@@ -1,6 +1,9 @@
 version: "3.8"
 
 services:
+  # ==========================================================
+  # API IRIS
+  # ==========================================================
   mlops-api:
     image: antoldm17/mlops-api:latest
     container_name: mlops-api
@@ -8,6 +11,9 @@ services:
       - "5000:5000"
     restart: always
 
+  # ==========================================================
+  # WEB IRIS (Streamlit)
+  # ==========================================================
   mlops-web:
     image: antoldm17/mlops-web:latest
     container_name: mlops-web
@@ -19,6 +25,37 @@ services:
       - mlops-api
     restart: always
 
+  # ==========================================================
+  # API TELCO (Flask + XAI)
+  # ==========================================================
+  mlops-telco-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.telco
+    container_name: mlops-telco-api
+    ports:
+      - "5001:5001"
+    restart: always
+
+  # ==========================================================
+  # WEB TELCO XAI (Streamlit)
+  # ==========================================================
+  mlops-telco-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web_telco
+    container_name: mlops-telco-web
+    environment:
+      - TELCO_API_URL=http://mlops-telco-api:5001
+    ports:
+      - "8502:8502"
+    depends_on:
+      - mlops-telco-api
+    restart: always
+
+  # ==========================================================
+  # PROMETHEUS
+  # ==========================================================
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -28,6 +65,9 @@ services:
       - "9090:9090"
     restart: unless-stopped
 
+  # ==========================================================
+  # GRAFANA
+  # ==========================================================
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
