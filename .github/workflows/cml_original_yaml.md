@@ -1,0 +1,166 @@
+name: MLOps with CML
+on: [push, pull_request]
+
+jobs:
+  train-and-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: DVC and Python setup
+        uses: iterative/setup-dvc@v1
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "${{ secrets.GIT_USER_EMAIL }}"
+          git config --global user.name  "${{ secrets.GIT_USER_NAME }}"
+
+      - name: Restore DVC Cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/dvc
+          key: dvc-cache-${{ hashFiles('dvc.yaml', 'dvc.lock') }}
+          restore-keys: |
+            dvc-cache-
+
+      - name: DVC Pull
+        env:
+          DAGSHUB_API_KEY:  ${{ secrets.DAGSHUB_API_KEY }}
+        run: |
+          dvc remote modify origin --local access_key_id $DAGSHUB_API_KEY
+          dvc remote modify origin --local secret_access_key $DAGSHUB_API_KEY
+          dvc pull -r origin
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install "mlflow<3"
+          pip install pyyaml
+          pip install -r requirements.txt
+
+      - name: Install CML manually
+        run: npm install -g @dvcorg/cml
+
+      - name: Run training script
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_API_KEY }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          python3 train.py
+          dvc repro
+
+  deploy-to-gke:
+    needs: train-and-report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: DVC and Python setup
+        uses: iterative/setup-dvc@v1
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up gcloud CLI and kubectl
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: 'latest'
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ vars.GKE_CLUSTER }} \
+            --zone ${{ vars.GKE_ZONE }} \
+            --project ${{ vars.GCP_PROJECT_ID }}
+
+      - name: DVC Pull
+        env:
+          DAGSHUB_API_KEY: ${{ secrets.DAGSHUB_API_KEY }}
+        run: |
+          dvc remote modify origin --local access_key_id $DAGSHUB_API_KEY
+          dvc remote modify origin --local secret_access_key $DAGSHUB_API_KEY
+          dvc pull -r origin
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Configure Docker to use GCR
+        run: |
+          gcloud auth configure-docker
+
+      # --- CONSTRUIR, ESCANEAR Y SUBIR IMAGEN DE LA API (mlops-api) ---
+      - name: Build API Docker Image
+        id: build_api
+        run: |
+          IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-api:latest"
+          docker build -t $IMAGE_NAME .
+          echo "IMAGE_API=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Trivy Scan for API Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_API }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      - name: Push API Docker Image
+        run: docker push ${{ env.IMAGE_API }}
+
+      # --- CONSTRUIR, ESCANEAR Y SUBIR IMAGEN DE LA WEB (mlops-web) ---
+      - name: Build Web Docker Image
+        id: build_web
+        run: |
+          IMAGE_NAME="gcr.io/${{ vars.GCP_PROJECT_ID }}/mlops-web:latest"
+          docker build -t $IMAGE_NAME -f Dockerfile.web .
+          echo "IMAGE_WEB=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: Trivy Scan for Web Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_WEB }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      - name: Push Web Docker Image
+        run: docker push ${{ env.IMAGE_WEB }}
+
+      # --- DESPLEGAR EN GKE (API + WEB + PodMonitoring) ---
+      - name: Deploy to GKE
+        run: |
+          # Despliegue de la API (interno)
+          kubectl apply -f api-deployment.yaml
+          kubectl apply -f api-service.yaml
+
+          # Despliegue de la Web (pública)
+          kubectl apply -f web-deployment.yaml
+          kubectl apply -f web-service.yaml
+
+          # Recurso de monitorización de Pods para Managed Prometheus
+          kubectl apply -f pod-monitoring.yaml
+
+      - name: Show Services and Pods
+        run: |
+          kubectl get deploy,po,svc -o wide

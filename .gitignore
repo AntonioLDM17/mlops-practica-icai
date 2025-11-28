@@ -4,11 +4,15 @@ __pycache__/
 mlruns/
 confusion_matrix.png
 
-# Ignorar artefactos del pipeline XAI Telco
-artifacts_telco/*
-!artifacts_telco/.gitkeep
-
-# Ignorar datasets
+# Dataset grandes
 data/iris_dataset.csv
 data/telco_churn.csv
+
+# Artefactos Telco XAI:
+artifacts_telco/telco_background.csv
+artifacts_telco/*
+!artifacts_telco/*.json
+!artifacts_telco/*.npy
+!artifacts_telco/.gitkeep
+
 cosas_a_añadir.md
