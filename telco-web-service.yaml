@@ -3,10 +3,11 @@ kind: Service
 metadata:
   name: mlops-telco-web-service
 spec:
+  type: LoadBalancer
+  loadBalancerIP: 34.79.10.103
   selector:
     app: mlops-telco-web
   ports:
     - protocol: TCP
-      port: 80         # puerto público del LB
-      targetPort: 8502 # puerto del contenedor
-  type: LoadBalancer   # visible públicamente
+      port: 80
+      targetPort: 8502
