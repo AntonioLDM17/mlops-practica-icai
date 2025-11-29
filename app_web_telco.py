@@ -13,7 +13,7 @@ PREDICT_ENDPOINT = f"{API_URL}/telco/predict"
 EXPLAIN_ENDPOINT = f"{API_URL}/telco/explain"
 GLOBAL_XAI_ENDPOINT = f"{API_URL}/telco/xai/global"
 RETRAIN_ENDPOINT = f"{API_URL}/telco/retrain"
-
+SHUFFLE_SANITY_ENDPOINT = f"{API_URL}/telco/sanity/shuffle_labels"
 
 # ================== OPCIONES TELCO ==================
 
@@ -127,6 +127,12 @@ def call_retrain(drop_list):
     resp.raise_for_status()
     return resp.json()
 
+def call_shuffle_sanity():
+    """Llama al sanity-check de etiquetas barajadas."""
+    resp = requests.post(SHUFFLE_SANITY_ENDPOINT, json={})
+    resp.raise_for_status()
+    return resp.json()
+
 
 # ================== UI STREAMLIT ==================
 
@@ -140,8 +146,10 @@ mode = st.sidebar.radio(
         "Predicción + explicación local",
         "Explicabilidad global",
         "Sanity-check: reentrenar sin algunas features",
+        "Sanity-check: barajar etiquetas (modelo sin señal)",
     ],
 )
+
 
 st.sidebar.markdown(f"**API URL:** `{API_URL}`")
 
@@ -279,7 +287,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
 
             **Balanced accuracy**  
             - Media de la tasa de aciertos en cada clase:  
-              \\(Balanced accuracy} = (TPR_churn + TNR_no_churn) / 2\\).  
+              \\(Balanced accuracy = (TPR_churn + TNR_no_churn) / 2\\).  
             - Vale 0.5 para un modelo “aleatorio” con dos clases, aunque el dataset esté desbalanceado.  
             - Si es cercana a 0.5 pero la accuracy es alta, es señal de que el modelo solo está aprendiendo bien la clase mayoritaria.
 
@@ -638,3 +646,202 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
 
         except Exception as e:
             st.error(f"Error llamando al retrain: {e}")
+
+# ============ MODO 4: SANITY-CHECK LABELS BARAJADAS ============
+
+elif mode == "Sanity-check: barajar etiquetas (modelo sin señal)":
+    st.markdown(
+        """
+    ### 🧪 Sanity check: entrenar con etiquetas barajadas
+
+    Este experimento responde a la pregunta:
+
+    > *“Si rompo la relación entre X y y (churn), ¿el modelo se derrumba a azar?”*
+
+    Entrenamos dos modelos con la misma receta que en producción:
+    - **Baseline**: con las etiquetas reales.
+    - **Shuffled**: con las mismas features pero con las etiquetas barajadas aleatoriamente.
+
+    Si el modelo está aprendiendo señal real:
+    - El baseline debería tener **ROC AUC** y **AUC-PR** bastante por encima de azar.
+    - El modelo con etiquetas barajadas debería tener:
+      - ROC AUC ≈ 0.5
+      - AUC-PR ≈ prevalencia de churn
+      - Balanced accuracy ≈ 0.5
+    """
+    )
+
+    if st.button("🚨 Ejecutar sanity-check de etiquetas barajadas"):
+        try:
+            result = call_shuffle_sanity()
+        except Exception as e:
+            st.error(f"Error llamando al endpoint de sanity-check: {e}")
+        else:
+            prevalence = result.get("prevalence", 0.0)
+            baseline = result.get("baseline", {})
+            shuffled = result.get("shuffled", {})
+
+            st.markdown(f"**Prevalencia de churn en el dataset:** `{prevalence*100:.2f} %`")
+
+            metrics = [
+                "accuracy",
+                "balanced_accuracy",
+                "roc_auc",
+                "auc_pr",
+                "precision_pos",
+                "recall_pos",
+                "f1_pos",
+            ]
+
+            rows = []
+            for m in metrics:
+                base_val = baseline.get(m, 0.0)
+                sh_val = shuffled.get(m, 0.0)
+                delta = sh_val - base_val
+                rows.append(
+                    {
+                        "metric": m,
+                        "baseline": base_val,
+                        "shuffled": sh_val,
+                        "delta_shuffled_minus_baseline": delta,
+                    }
+                )
+
+            df_metrics = pd.DataFrame(rows).set_index("metric")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("#### 📈 Modelo baseline (etiquetas reales)")
+                st.metric("Accuracy", f"{baseline.get('accuracy', 0)*100:.2f} %")
+                st.metric("Balanced accuracy", f"{baseline.get('balanced_accuracy', 0):.3f}")
+                st.metric("ROC AUC", f"{baseline.get('roc_auc', 0):.3f}")
+                st.metric("AUC-PR", f"{baseline.get('auc_pr', 0):.3f}")
+                st.metric("Recall churn=1", f"{baseline.get('recall_pos', 0):.3f}")
+
+            with col2:
+                st.markdown("#### 🎲 Modelo con etiquetas barajadas")
+                st.metric("Accuracy", f"{shuffled.get('accuracy', 0)*100:.2f} %")
+                st.metric("Balanced accuracy", f"{shuffled.get('balanced_accuracy', 0):.3f}")
+                st.metric("ROC AUC", f"{shuffled.get('roc_auc', 0):.3f}")
+                st.metric("AUC-PR", f"{shuffled.get('auc_pr', 0):.3f}")
+                st.metric("Recall churn=1", f"{shuffled.get('recall_pos', 0):.3f}")
+
+            st.write("### Tabla de métricas (baseline vs etiquetas barajadas)")
+            st.dataframe(
+                df_metrics.style.format(
+                    {
+                        "baseline": "{:.4f}",
+                        "shuffled": "{:.4f}",
+                        "delta_shuffled_minus_baseline": "{:+.4f}",
+                    }
+                )
+            )
+
+            # Comentarios interpretativos rápidos
+            auc_base = baseline.get("roc_auc", 0.0)
+            auc_sh = shuffled.get("roc_auc", 0.0)
+            aucpr_base = baseline.get("auc_pr", 0.0)
+            aucpr_sh = shuffled.get("auc_pr", 0.0)
+            bal_base = baseline.get("balanced_accuracy", 0.0)
+            bal_sh = shuffled.get("balanced_accuracy", 0.0)
+
+            if auc_sh < 0.6 and bal_sh < 0.55 and abs(aucpr_sh - prevalence) < 0.05:
+                st.success(
+                    "✅ El modelo con etiquetas barajadas se comporta prácticamente como azar "
+                    "(ROC AUC ≈ 0.5, balanced accuracy ≈ 0.5, AUC-PR ≈ prevalencia). "
+                    "Esto indica que el modelo baseline **sí está capturando señal real**."
+                )
+
+            if auc_base - auc_sh < 0.05 and aucpr_base - aucpr_sh < 0.02:
+                st.warning(
+                    "⚠️ Las métricas del modelo baseline y del modelo con etiquetas barajadas "
+                    "son muy parecidas. Esto sugiere que el modelo baseline **no está "
+                    "aprovechando bien la señal del dataset**, o que la señal es muy débil."
+                )
+                
+            # ====== 2️⃣ Curvas ROC y Precision–Recall ======
+            st.write("## 2️⃣ Curvas ROC y Precision–Recall")
+
+            col_roc, col_pr = st.columns(2)
+
+            # --- Curvas ROC baseline vs shuffled ---
+            with col_roc:
+                st.markdown("### Curva ROC (baseline vs etiquetas barajadas)")
+
+                roc_b = baseline.get("roc_curve", {})
+                roc_s = shuffled.get("roc_curve", {})
+
+                df_roc_base = pd.DataFrame(
+                    {
+                        "fpr": roc_b.get("fpr", []),
+                        "tpr": roc_b.get("tpr", []),
+                        "model": "baseline",
+                    }
+                )
+                df_roc_shuff = pd.DataFrame(
+                    {
+                        "fpr": roc_s.get("fpr", []),
+                        "tpr": roc_s.get("tpr", []),
+                        "model": "shuffled",
+                    }
+                )
+
+                df_roc_all = pd.concat([df_roc_base, df_roc_shuff], ignore_index=True)
+
+                if not df_roc_all.empty:
+                    chart_roc = (
+                        alt.Chart(df_roc_all)
+                        .mark_line()
+                        .encode(
+                            x=alt.X("fpr", title="False Positive Rate"),
+                            y=alt.Y("tpr", title="True Positive Rate"),
+                            color=alt.Color("model", title="Modelo"),
+                        )
+                        .properties(title="Curva ROC baseline vs etiquetas barajadas")
+                    )
+                    st.altair_chart(chart_roc, use_container_width=True)
+                else:
+                    st.info("No se pudieron construir las curvas ROC.")
+
+            # --- Curvas Precision–Recall baseline vs shuffled ---
+            with col_pr:
+                st.markdown("### Curva Precision–Recall (baseline vs etiquetas barajadas)")
+
+                pr_b = baseline.get("pr_curve", {})
+                pr_s = shuffled.get("pr_curve", {})
+
+                df_pr_base = pd.DataFrame(
+                    {
+                        "recall": pr_b.get("recall", []),
+                        "precision": pr_b.get("precision", []),
+                        "model": "baseline",
+                    }
+                )
+                df_pr_shuff = pd.DataFrame(
+                    {
+                        "recall": pr_s.get("recall", []),
+                        "precision": pr_s.get("precision", []),
+                        "model": "shuffled",
+                    }
+                )
+
+                df_pr_all = pd.concat([df_pr_base, df_pr_shuff], ignore_index=True)
+
+                if not df_pr_all.empty:
+                    chart_pr = (
+                        alt.Chart(df_pr_all)
+                        .mark_line()
+                        .encode(
+                            x=alt.X("recall", title="Recall"),
+                            y=alt.Y("precision", title="Precision"),
+                            color=alt.Color("model", title="Modelo"),
+                        )
+                        .properties(title="Curva Precision–Recall baseline vs etiquetas barajadas")
+                    )
+                    st.altair_chart(chart_pr, use_container_width=True)
+                else:
+                    st.info("No se pudieron construir las curvas Precision–Recall.")
+
+            with st.expander("🔎 Ver JSON completo devuelto por la API"):
+                st.json(result)

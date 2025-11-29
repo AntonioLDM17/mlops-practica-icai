@@ -1,4 +1,4 @@
-# MLOps – Iris + Telco Churn (XAI, CI/CD, GKE)
+# MLOps + XAI – Iris + Telco Churn (XAI, CI/CD, GKE)
 
 Este proyecto implementa un pipeline de **MLOps completo** con dos casos de uso:
 
@@ -7,28 +7,32 @@ Este proyecto implementa un pipeline de **MLOps completo** con dos casos de uso:
 
    * Predicción con explicación local (SHAP).
    * Explicabilidad global (Permutation FI + SHAP Global).
-   * Reentrenamiento rápido eliminando features seleccionadas para comparar el rendimiento con respecto al modelo baseline oficial.
+   * Reentrenamiento rápido eliminando features seleccionadas.
+   * Sanity-checks completos de modelo:
+
+     * Comparación baseline vs modelo reentrenado sin ciertas features.
+     * Comparación baseline vs modelo entrenado con **etiquetas barajadas** (shuffle labels).
 
 Incluye:
 
-* Versionado de datos/modelos con **DVC**.
+* Versionado de datos y modelos con **DVC**.
 * Trazabilidad de experimentos con **MLflow** (remoto en DagsHub).
 * **APIs Flask** para Iris y Telco.
 * **Frontends Streamlit** para Iris y Telco XAI.
-* **Docker + docker-compose** para reproducción local.
+* **Docker y docker-compose** para ejecución local.
 * **CI/CD con GitHub Actions + CML**.
-* Despliegue en **GKE** (opcional).
+* **Despliegue automático en GKE** (opcional).
 
 ---
 
 ## 1. Requisitos
 
-Para **ejecutar el proyecto desde cero en local**, se necesita:
+Para ejecutar el proyecto desde cero en local:
 
 * Docker
 * Docker Compose
 
-No hace falta instalar Python, DVC o MLflow para usar las aplicaciones web.
+No es necesario instalar Python, DVC ni MLflow para usar las aplicaciones web.
 
 ---
 
@@ -43,14 +47,14 @@ cd mlops-practica-icai
 
 ## 3. Ejecución rápida con Docker (recomendado)
 
-El fichero `docker-compose.yml` levanta:
+El fichero `docker-compose.yml` levanta los siguientes servicios:
 
 * `mlops-api` → API Iris
 * `mlops-web` → Web Iris
-* `mlops-telco-api` → API Telco Churn + XAI + retrain
-* `mlops-telco-web` → Web Telco Churn + XAI + sanity-check
-* `prometheus` → Servidor Prometheus
-* `grafana` → Dashboard Grafana
+* `mlops-telco-api` → API Telco Churn + XAI + sanity checks
+* `mlops-telco-web` → Web Telco Churn + XAI + retrain + sanity checks
+* `prometheus` → Recolección de métricas
+* `grafana` → Dashboards provisionados
 
 ### 3.1. Levantar todo
 
@@ -60,57 +64,78 @@ docker-compose up --build
 
 ### 3.2. URLs locales
 
-#### 🌸 3.2.1. Web Iris
+---
 
-`http://localhost:8501`
+### 🌸 3.2.1. Web Iris
 
-Permite interactuar con el modelo Iris y visualizar métricas.
+**[http://localhost:8501](http://localhost:8501)**
+Interfaz Streamlit para predicción y visualización.
 
 ---
 
-#### 📡 3.2.2. Web Telco Churn + XAI + Sanity Check
+### 📡 3.2.2. Web Telco Churn + XAI + Sanity Checks
 
-`http://localhost:8502`
+**[http://localhost:8502](http://localhost:8502)**
 
 Incluye:
 
 ### ✔ Predicción + Explicación local
 
-* Formulario para introducir los datos del cliente.
-* El backend devuelve:
+* Probabilidad de churn
+* Predicción (0/1)
+* Valores SHAP locales
 
-  * Probabilidad de churn
-  * Predicción (0/1)
-  * Valores **SHAP locales**
+---
 
 ### ✔ Explicabilidad global
 
-* **Permutation Feature Importance** (features originales)
-* **SHAP Global** (features transformadas: numéricas + one-hot)
+* **Permutation Feature Importance**
+* **SHAP Global**
 
-### ✔ Sanity-check interactivo (reentrenamiento sin features)
+---
 
-Permite:
+### ✔ Reentrenamiento rápido eliminando features
 
-* Seleccionar un conjunto de features a eliminar
-* Reentrenar un modelo desde cero en las mismas condiciones que el baseline
-* Comparar:
+Comparación detallada baseline vs reducido:
 
-| Métrica                 | Comparación                        |
-| ----------------------- | ---------------------------------- |
-| Accuracy                | Baseline vs reducido               |
-| Balanced Accuracy       | Ideal para dataset desbalanceado   |
-| ROC AUC                 | Curvas ROC comparadas              |
-| AUC-PR                  | Métrica principal para churn       |
-| Precision / Recall / F1 | Especialmente sobre clase positiva |
-| Confusion Matrix        | TN / FP / FN / TP                  |
-| Importancia eliminada   | Comprobación de explicabilidad     |
+* Accuracy
+* Balanced Accuracy
+* ROC AUC
+* AUC-PR
+* Precision/Recall/F1
+* Matriz de confusión
+* Curvas ROC comparadas
+* Curvas Precision–Recall comparadas
+* Importancia eliminada
+
+---
+
+### ✔ Sanity-check: modelo entrenado con etiquetas barajadas (shuffle labels)
+
+Analiza el comportamiento del modelo cuando **no existe señal real**:
+
+* Entrenamiento con labels aleatorizados
+* Comparación directo con baseline con:
+
+  * Balanced accuracy ≈ 0.5
+  * ROC AUC ≈ 0.5
+  * AUC-PR igual a prevalencia
+  * Curvas ROC diagonales
+  * Curvas PR horizontales
+  * Matriz de confusión de predicciones aleatorias
+  * FI y SHAP sin estructura coherente
+
+Con esto se valida:
+
+* Ausencia de data leakage
+* Coherencia de explicabilidad
+* Que el baseline realmente aprende algo
 
 ---
 
 ### 📈 3.2.3. Prometheus
 
-`http://localhost:9090`
+**[http://localhost:9090](http://localhost:9090)**
 
 Recolecta métricas expuestas por la API Iris.
 
@@ -118,11 +143,9 @@ Recolecta métricas expuestas por la API Iris.
 
 ### 📊 3.2.4. Grafana
 
-`http://localhost:3000`
+**[http://localhost:3000](http://localhost:3000)**
 Usuario: `admin`
 Contraseña: `admin`
-
-Dashboards precargados para visualizar las métricas monitorizadas.
 
 ---
 
@@ -134,15 +157,66 @@ docker-compose down
 
 ---
 
-## 4. (Opcional) Ejecución sin Docker
+## 4. (Opcional) Ejecución sin Docker – APIs y Webs
 
-*(igual que antes, no modificado)*
+Esta sección permite ejecutar todo desde Python, aunque **Docker sigue siendo la vía recomendada**.
+
+### Requisitos
+
+* Python 3.11
+* pip
+* Opcional: conda o venv
 
 ---
 
-## 5. Entrenamiento con DVC y MLflow
+### 4.1. Crear entorno virtual (ejemplo con venv)
 
-El fichero `dvc.yaml` define dos pipelines reproducibles:
+```bash
+python -m venv .venv
+source .venv/bin/activate    # Linux / Mac
+# o en Windows:
+# .venv\Scripts\activate
+```
+
+---
+
+### 4.2. Instalar dependencias
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+> Nota: los datos y modelos se gestionan con **DVC**.
+> Para entrenamiento reproducible necesitarías credenciales de DagsHub.
+> Pero **para ejecutar las apps no es necesario**.
+
+---
+
+### 4.3. Lanzar a mano API + Web Telco
+
+Terminal 1 → API Telco:
+
+```bash
+python app_telco.py
+# API escuchando en http://localhost:5001
+```
+
+Terminal 2 → Web Telco:
+
+```bash
+streamlit run app_web_telco.py --server.port 8502
+```
+
+Iris tiene equivalente (`app.py` y `app_web.py`), aunque no es necesario si se usa Docker.
+
+---
+
+## 5. (Opcional) Entrenamiento con DVC y MLflow
+
+El fichero `dvc.yaml` contiene dos pipelines:
+
+---
 
 ### ✔ Pipeline Iris
 
@@ -152,22 +226,31 @@ Genera:
 * `confusion_matrix.png`
 * `mlflow_metrics.json`
 
+---
+
 ### ✔ Pipeline Telco
 
-Ejecuta `train_telco.py`, que genera:
+Ejecuta `train_telco.py` y crea:
 
-* `model_telco.pkl` (modelo baseline utilizado en la API)
+* `model_telco.pkl` (baseline oficial usado en la API)
 * `telco_metrics.json`
-* Carpeta `artifacts_telco/` con:
+* Artefactos en `artifacts_telco/`:
 
   * `telco_background.csv`
   * `telco_feature_names.json`
   * `telco_perm_importance.json`
   * `telco_shap_global.json`
 
-Este baseline es la referencia oficial para las comparaciones dentro del modo **sanity-check** de la web de Telco.
+El baseline se utiliza como referencia para:
 
-Para ejecutar todo el pipeline:
+* Explicabilidad local/global
+* Reentrenamiento comparado
+* Sanity-check sin features
+* Sanity-check shuffle labels
+
+---
+
+### Reproducir todo el pipeline
 
 ```bash
 dvc repro
@@ -177,17 +260,15 @@ dvc repro
 
 ## 6. (Opcional) Despliegue en Google Kubernetes Engine (GKE)
 
-*(igual que antes)*
-
-Se despliegan:
+Incluye:
 
 * API Iris
 * Web Iris
-* API Telco Churn + XAI + retrain
-* Web Telco (frontend XAI + sanity check)
-* Prometheus (vía PodMonitoring)
+* API Telco Churn + XAI + sanity checks
+* Web Telco
+* Prometheus (monitorización Iris)
 
-Y se aplican los manifiestos:
+Cuando el clúster GKE está levantado y se ejecuta el job de deploy-to-gke, se aplica todo con:
 
 ```bash
 kubectl apply -f api-deployment.yaml
@@ -211,17 +292,18 @@ kubectl apply -f pod-monitoring.yaml
    docker-compose up --build
    ```
 
-2. Acceder a:
+2. Abrir:
 
-   * Iris Web → `http://localhost:8501`
-   * Telco XAI Web → `http://localhost:8502`
+   * Iris Web → **[http://localhost:8501](http://localhost:8501)**
+   * Telco XAI Web → **[http://localhost:8502](http://localhost:8502)**
 
-     * Predicción + explicabilidad
+     * Predicción + explicación local
      * Explicabilidad global
-     * **Sanity-check con reentrenamiento**
-   * Prometheus → `http://localhost:9090`
-   * Grafana → `http://localhost:3000`
+     * Reentrenamiento eliminando features
+     * **Sanity-check: shuffle labels**
+   * Prometheus → **[http://localhost:9090](http://localhost:9090)**
+   * Grafana → **[http://localhost:3000](http://localhost:3000)**
 
-3. No se necesita configurar Python, MLflow o DVC para usar las webs.
+3. No requiere instalación local de Python, DVC o MLflow para usar las webs.
 
-4. El proyecto demuestra un pipeline completo de **MLOps real**, con CI/CD, XAI, reproductibilidad, Docker, Kubernetes y monitorización.
+4. Demuestra un pipeline completo de **MLOps real**: reproducibilidad, CICD, Docker, Kubernetes, XAI y monitorización.

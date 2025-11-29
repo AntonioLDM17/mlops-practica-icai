@@ -21,6 +21,7 @@ from sklearn.metrics import (
     roc_curve,
     balanced_accuracy_score,
     average_precision_score,
+    precision_recall_curve,
 )
 
 # ================== CARGA DE MODELO Y ARTEFACTOS XAI ==================
@@ -430,6 +431,205 @@ def telco_retrain():
                 "importance_removed_sum": importance_removed_sum,
                 "baseline": baseline_stats,
                 "retrained": retrained_stats,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+# ================== ENDPOINT: SANITY-CHECK LABELS BARAJADAS ==================
+
+@app.post("/telco/sanity/shuffle_labels")
+def telco_sanity_shuffle_labels():
+    """
+    Sanity-check: entrena dos modelos con la MISMA receta que train_telco.py:
+      - baseline: etiquetas reales
+      - shuffled: etiquetas barajadas (sin relación con X)
+
+    Si el modelo está aprendiendo señal real:
+      - El baseline debería tener métricas claramente mejores (AUC > 0.7, AUC-PR > prevalencia, etc.).
+      - El modelo con etiquetas barajadas debería acercarse a azar:
+          * ROC AUC ≈ 0.5
+          * AUC-PR ≈ prevalencia de churn
+          * balanced_accuracy ≈ 0.5
+    """
+    try:
+        # ---------- 1) Cargar dataset completo ----------
+        df = pd.read_csv("data/telco_churn.csv")
+        df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+        df = df.dropna(subset=["TotalCharges"])
+
+        y = df["Churn"].replace({"Yes": 1, "No": 0})
+        X = df.drop(columns=["Churn", "customerID"])
+
+        prevalence = float(y.mean())
+
+        # ---------- 2) Train/test split como en train_telco.py ----------
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            random_state=42,
+            stratify=y,
+        )
+
+        # Columnas para el preprocesador
+        cat_cols = X.select_dtypes(include=["object"]).columns.tolist()
+        num_cols = X.select_dtypes(exclude=["object"]).columns.tolist()
+
+        pre = ColumnTransformer(
+            transformers=[
+                ("num", StandardScaler(), num_cols),
+                ("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols),
+            ]
+        )
+
+        param_grid = {
+            "clf__n_estimators": [200, 300],
+            "clf__max_depth": [None, 10],
+            "clf__min_samples_leaf": [1, 2],
+        }
+
+        # ---------- 3) Modelo BASELINE (etiquetas reales) ----------
+        rf_base = RandomForestClassifier(
+            random_state=42,
+            class_weight="balanced",
+        )
+
+        pipe_base = Pipeline(
+            steps=[
+                ("pre", pre),
+                ("clf", rf_base),
+            ]
+        )
+
+        grid_base = GridSearchCV(
+            pipe_base,
+            param_grid=param_grid,
+            cv=3,
+            scoring="average_precision",
+            n_jobs=-1,
+        )
+
+        grid_base.fit(X_train, y_train)
+        baseline_model = grid_base.best_estimator_
+
+        y_pred_base = baseline_model.predict(X_test)
+        y_proba_base = baseline_model.predict_proba(X_test)[:, 1]
+
+        acc_base = accuracy_score(y_test, y_pred_base)
+        auc_base = roc_auc_score(y_test, y_proba_base)
+        bal_acc_base = balanced_accuracy_score(y_test, y_pred_base)
+        auc_pr_base = average_precision_score(y_test, y_proba_base)
+        prec_base = precision_score(y_test, y_pred_base, pos_label=1, zero_division=0)
+        rec_base = recall_score(y_test, y_pred_base, pos_label=1, zero_division=0)
+        f1_base = f1_score(y_test, y_pred_base, pos_label=1, zero_division=0)
+
+        tn_b, fp_b, fn_b, tp_b = confusion_matrix(y_test, y_pred_base).ravel()
+        fpr_b, tpr_b, _ = roc_curve(y_test, y_proba_base)
+
+        # Curva Precision-Recall baseline
+        prec_curve_b, rec_curve_b, _ = precision_recall_curve(y_test, y_proba_base)
+
+
+        baseline_stats = {
+            "accuracy": float(acc_base),
+            "balanced_accuracy": float(bal_acc_base),
+            "roc_auc": float(auc_base),
+            "auc_pr": float(auc_pr_base),
+            "precision_pos": float(prec_base),
+            "recall_pos": float(rec_base),
+            "f1_pos": float(f1_base),
+            "confusion": {
+                "tn": int(tn_b),
+                "fp": int(fp_b),
+                "fn": int(fn_b),
+                "tp": int(tp_b),
+            },
+            "roc_curve": {
+                "fpr": fpr_b.tolist(),
+                "tpr": tpr_b.tolist(),
+            },
+            "pr_curve": {
+                "precision": prec_curve_b.tolist(),
+                "recall": rec_curve_b.tolist(),
+            },
+        }
+
+
+        # ---------- 4) Modelo con LABELS BARAJADAS ----------
+        # Barajamos SOLO y_train, manteniendo X_train intacto.
+        y_train_shuffled = y_train.sample(frac=1.0, random_state=123)
+
+        rf_shuff = RandomForestClassifier(
+            random_state=42,
+            class_weight="balanced",
+        )
+
+        pipe_shuff = Pipeline(
+            steps=[
+                ("pre", pre),
+                ("clf", rf_shuff),
+            ]
+        )
+
+        grid_shuff = GridSearchCV(
+            pipe_shuff,
+            param_grid=param_grid,
+            cv=3,
+            scoring="average_precision",
+            n_jobs=-1,
+        )
+
+        grid_shuff.fit(X_train, y_train_shuffled)
+        shuffled_model = grid_shuff.best_estimator_
+
+        y_pred_shuff = shuffled_model.predict(X_test)
+        y_proba_shuff = shuffled_model.predict_proba(X_test)[:, 1]
+
+        acc_sh = accuracy_score(y_test, y_pred_shuff)
+        auc_sh = roc_auc_score(y_test, y_proba_shuff)
+        bal_acc_sh = balanced_accuracy_score(y_test, y_pred_shuff)
+        auc_pr_sh = average_precision_score(y_test, y_proba_shuff)
+        prec_sh = precision_score(y_test, y_pred_shuff, pos_label=1, zero_division=0)
+        rec_sh = recall_score(y_test, y_pred_shuff, pos_label=1, zero_division=0)
+        f1_sh = f1_score(y_test, y_pred_shuff, pos_label=1, zero_division=0)
+
+        tn_s, fp_s, fn_s, tp_s = confusion_matrix(y_test, y_pred_shuff).ravel()
+        fpr_s, tpr_s, _ = roc_curve(y_test, y_proba_shuff)
+
+        # Curva Precision-Recall shuffled
+        prec_curve_s, rec_curve_s, _ = precision_recall_curve(y_test, y_proba_shuff)
+
+        shuffled_stats = {
+            "accuracy": float(acc_sh),
+            "balanced_accuracy": float(bal_acc_sh),
+            "roc_auc": float(auc_sh),
+            "auc_pr": float(auc_pr_sh),
+            "precision_pos": float(prec_sh),
+            "recall_pos": float(rec_sh),
+            "f1_pos": float(f1_sh),
+            "confusion": {
+                "tn": int(tn_s),
+                "fp": int(fp_s),
+                "fn": int(fn_s),
+                "tp": int(tp_s),
+            },
+            "roc_curve": {
+                "fpr": fpr_s.tolist(),
+                "tpr": tpr_s.tolist(),
+            },
+            "pr_curve": {
+                "precision": prec_curve_s.tolist(),
+                "recall": rec_curve_s.tolist(),
+            },
+        }
+
+
+        return jsonify(
+            {
+                "prevalence": prevalence,
+                "baseline": baseline_stats,
+                "shuffled": shuffled_stats,
             }
         )
 

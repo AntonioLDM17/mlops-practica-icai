@@ -17,8 +17,8 @@ stages:
       isexec: true
     - path: requirements.txt
       hash: md5
-      md5: f497790abc5c2edf6548c4caec631687
-      size: 212
+      md5: 9c1bbec62ea4bd4c4129c5b93fa8c3fb
+      size: 222
       isexec: true
     - path: train.py
       hash: md5
@@ -41,7 +41,7 @@ stages:
       isexec: true
     - path: model.pkl
       hash: md5
-      md5: 484c95c5e8503c9959faa79c8ecef7eb
+      md5: f3c56e77f4fc9f14be8a7ca2da84ad8f
       size: 530177
       isexec: true
   prepare_telco:
@@ -61,8 +61,8 @@ stages:
       isexec: true
     - path: requirements.txt
       hash: md5
-      md5: f497790abc5c2edf6548c4caec631687
-      size: 212
+      md5: 9c1bbec62ea4bd4c4129c5b93fa8c3fb
+      size: 222
       isexec: true
     - path: train_telco.py
       hash: md5
@@ -72,7 +72,7 @@ stages:
     outs:
     - path: model_telco.pkl
       hash: md5
-      md5: 2fde4b60ee7723747746b14e7d182983
+      md5: 7a5594699a63081c4682c2abd2025520
       size: 16394415
       isexec: true
     - path: telco_metrics.json
