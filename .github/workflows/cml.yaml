@@ -37,7 +37,8 @@ jobs:
         run: |
           dvc remote modify origin --local access_key_id $DAGSHUB_API_KEY
           dvc remote modify origin --local secret_access_key $DAGSHUB_API_KEY
-          dvc pull -r origin
+          # Si falla, no paramos el job: entrenaremos desde cero en el siguiente paso
+          dvc pull -r origin || echo "WARN: dvc pull falló; se generarán los artefactos en train.py + dvc repro"
 
       - name: Install dependencies
         run: |
