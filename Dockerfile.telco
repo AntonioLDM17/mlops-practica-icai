@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app_telco.py .
 COPY model_telco.pkl .
 COPY artifacts_telco ./artifacts_telco
+# Copiar el CSV de Telco dentro de /app/data
+RUN mkdir -p data
+COPY data/telco_churn.csv ./data/telco_churn.csv
 
 # Puerto de la API Telco
 EXPOSE 5001

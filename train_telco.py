@@ -9,7 +9,15 @@ import mlflow.sklearn
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    roc_auc_score,
+    average_precision_score,      
+    balanced_accuracy_score,      
+    precision_score,              
+    recall_score,                 
+    f1_score,                     
+)
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -24,7 +32,7 @@ RANDOM_STATE = 42
 df = pd.read_csv("data/telco_churn.csv")
 
 # Limpiar y preparar columnas numéricas
-df["TotalCharges" ] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
 df = df.dropna(subset=["TotalCharges"])
 
 # Etiqueta binaria
@@ -54,17 +62,38 @@ preprocessor = ColumnTransformer(
 logreg_pipeline = Pipeline(
     steps=[
         ("pre", preprocessor),
-        ("clf", LogisticRegression(max_iter=1000)),
+        (
+            "clf",
+            LogisticRegression(
+                max_iter=1000,
+                class_weight="balanced",   # dar más peso al churn
+            ),
+        ),
     ]
 )
 
 with mlflow.start_run(run_name="telco_logreg"):
     logreg_pipeline.fit(X_train, y_train)
     y_pred = logreg_pipeline.predict(X_test)
+    y_proba = logreg_pipeline.predict_proba(X_test)[:, 1]
+
     acc = accuracy_score(y_test, y_pred)
+    auc = roc_auc_score(y_test, y_proba)
+    bal_acc = balanced_accuracy_score(y_test, y_pred)          
+    ap = average_precision_score(y_test, y_proba)              
+    prec = precision_score(y_test, y_pred, pos_label=1)        
+    rec = recall_score(y_test, y_pred, pos_label=1)            
+    f1 = f1_score(y_test, y_pred, pos_label=1)                 
 
     mlflow.log_param("model_type", "logreg")
     mlflow.log_metric("accuracy", acc)
+    mlflow.log_metric("roc_auc", auc)
+    mlflow.log_metric("balanced_accuracy", bal_acc)            
+    mlflow.log_metric("average_precision", ap)                 
+    mlflow.log_metric("precision_pos", prec)                   
+    mlflow.log_metric("recall_pos", rec)                       
+    mlflow.log_metric("f1_pos", f1)                            
+
     mlflow.sklearn.log_model(logreg_pipeline, "model")
 
 
@@ -72,7 +101,13 @@ with mlflow.start_run(run_name="telco_logreg"):
 rf_pipeline = Pipeline(
     steps=[
         ("pre", preprocessor),
-        ("clf", RandomForestClassifier(random_state=RANDOM_STATE)),
+        (
+            "clf",
+            RandomForestClassifier(
+                random_state=RANDOM_STATE,
+                class_weight="balanced",      
+            ),
+        ),
     ]
 )
 
@@ -80,13 +115,15 @@ param_grid = {
     "clf__n_estimators": [200, 300],
     "clf__max_depth": [None, 10],
     "clf__min_samples_leaf": [1, 2],
+    # podrías ampliar este grid si quieres apretar más:
+    # "clf__max_features": ["sqrt", 0.5],
 }
 
 grid = GridSearchCV(
     rf_pipeline,
     param_grid=param_grid,
     cv=3,
-    scoring="roc_auc",
+    scoring="average_precision",   # optimizamos AUC-PR (clase positiva)
     n_jobs=-1,
 )
 
@@ -99,18 +136,39 @@ with mlflow.start_run(run_name="telco_rf") as run:
 
     acc = accuracy_score(y_test, y_pred)
     auc = roc_auc_score(y_test, y_proba)
+    bal_acc = balanced_accuracy_score(y_test, y_pred)          
+    ap = average_precision_score(y_test, y_proba)              
+    prec = precision_score(y_test, y_pred, pos_label=1)        
+    rec = recall_score(y_test, y_pred, pos_label=1)            
+    f1 = f1_score(y_test, y_pred, pos_label=1)                 
 
     mlflow.log_param("model_type", "random_forest")
     mlflow.log_params(grid.best_params_)
     mlflow.log_metric("accuracy", acc)
     mlflow.log_metric("roc_auc", auc)
+    mlflow.log_metric("balanced_accuracy", bal_acc)            
+    mlflow.log_metric("average_precision", ap)                 
+    mlflow.log_metric("precision_pos", prec)                   
+    mlflow.log_metric("recall_pos", rec)                       
+    mlflow.log_metric("f1_pos", f1)                            
 
     # Guardar modelo de despliegue
     joblib.dump(best_model, "model_telco.pkl")
 
     # Guardar métricas como JSON (para DVC)
     with open("telco_metrics.json", "w") as f:
-        json.dump({"accuracy": acc, "roc_auc": auc}, f)
+        json.dump(
+            {
+                "accuracy": acc,
+                "roc_auc": auc,
+                "balanced_accuracy": bal_acc,   
+                "average_precision": ap,        
+                "precision_pos": prec,          
+                "recall_pos": rec,              
+                "f1_pos": f1,                   
+            },
+            f,
+        )
 
 
 # ========= 6) DIRECTORIO DE ARTEFACTOS XAI =========
@@ -126,6 +184,8 @@ background = X_train.sample(
     n=min(200, len(X_train)),
     random_state=RANDOM_STATE
 )
+# Guardar el background en artifacts_telco
+background.to_csv("artifacts_telco/telco_background.csv", index=False)
 
 # Intentar cargar el background desde CSV (generado en train_telco)
 # Si no existe (por ejemplo, en un despliegue donde DVC no lo haya materializado bien),
@@ -160,6 +220,10 @@ except FileNotFoundError:
 
     # Construimos un DataFrame con las MISMAS columnas que usa el modelo
     background_df = pd.DataFrame([default_bg])
+
+# Guardar el background en artifacts_telco (si no existía)
+background_df.to_csv("artifacts_telco/telco_background.csv", index=False)
+
 # ========= 8) PERMUTATION FEATURE IMPORTANCE (GLOBAL) =========
 perm_result = permutation_importance(
     best_model,
@@ -205,8 +269,6 @@ if hasattr(X_test_sample_trans, "toarray"):
 try:
     transformed_feature_names = pre.get_feature_names_out()
 except AttributeError:
-    # Por si hubiese una versión muy vieja de sklearn (no es tu caso),
-    # usamos nombres genéricos.
     transformed_feature_names = [f"feature_{i}" for i in range(X_test_sample_trans.shape[1])]
 
 # Creamos el explainer para el RandomForest
@@ -215,8 +277,6 @@ explainer = shap.TreeExplainer(rf)
 # Calculamos valores SHAP sobre el test transformado
 shap_values = explainer(X_test_sample_trans)
 
-# shap_values.values puede ser 2D (n_samples, n_features)
-# o 3D (n_samples, n_features, n_outputs). Lo manejamos genéricamente.
 vals = shap_values.values
 if vals.ndim == 3:
     # Promediar sobre muestras y salidas

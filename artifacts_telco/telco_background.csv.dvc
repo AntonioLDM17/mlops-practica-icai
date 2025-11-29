@@ -1,6 +1,0 @@
-outs:
-- md5: 7bd50c6e53359e0f06dfdbbc32f7eb60
-  size: 24461
-  isexec: true
-  hash: md5
-  path: telco_background.csv
