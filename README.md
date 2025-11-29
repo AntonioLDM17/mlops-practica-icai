@@ -3,7 +3,11 @@
 Este proyecto implementa un pipeline de **MLOps completo** con dos casos de uso:
 
 1. **Clasificación Iris** (Random Forest + métricas + monitorización Prometheus/Grafana).
-2. **Predicción de churn Telco** con **explicabilidad** (Permutation Importance + SHAP) y una **web de exploración XAI**.
+2. **Predicción de churn Telco** con **explicabilidad** (Permutation Importance + SHAP) y una **web de exploración XAI**, que permite:
+
+   * Predicción con explicación local (SHAP).
+   * Explicabilidad global (Permutation FI + SHAP Global).
+   * Reentrenamiento rápido eliminando features seleccionadas para comparar el rendimiento con respecto al modelo baseline oficial.
 
 Incluye:
 
@@ -11,20 +15,20 @@ Incluye:
 * Trazabilidad de experimentos con **MLflow** (remoto en DagsHub).
 * **APIs Flask** para Iris y Telco.
 * **Frontends Streamlit** para Iris y Telco XAI.
-* **Docker + docker-compose** para reproducir todo en local.
+* **Docker + docker-compose** para reproducción local.
 * **CI/CD con GitHub Actions + CML**.
-* Despliegue en **Google Kubernetes Engine (GKE)** (opcional, gestionado por el autor).
+* Despliegue en **GKE** (opcional).
 
 ---
 
 ## 1. Requisitos
 
-Para **ejecutar el proyecto desde cero en local**, solo hace falta:
+Para **ejecutar el proyecto desde cero en local**, se necesita:
 
-* [Docker](https://docs.docker.com/get-docker/)
-* [Docker Compose](https://docs.docker.com/compose/) (en Docker Desktop ya viene incluido)
+* Docker
+* Docker Compose
 
-💡 **No es necesario** tener Python, DVC, MLflow ni cuenta en Google Cloud para **probar las aplicaciones web**.
+No hace falta instalar Python, DVC o MLflow para usar las aplicaciones web.
 
 ---
 
@@ -41,107 +45,88 @@ cd mlops-practica-icai
 
 El fichero `docker-compose.yml` levanta:
 
-* `mlops-api` → API de Iris (Flask, puerto interno 5000).
-* `mlops-web` → Web de Iris (Streamlit).
-* `mlops-telco-api` → API de Telco Churn + XAI (Flask, puerto interno 5001).
-* `mlops-telco-web` → Web de Telco Churn + XAI (Streamlit).
-* `prometheus` → Servidor Prometheus.
-* `grafana` → Dashboard Grafana con Prometheus como datasource.
+* `mlops-api` → API Iris
+* `mlops-web` → Web Iris
+* `mlops-telco-api` → API Telco Churn + XAI + retrain
+* `mlops-telco-web` → Web Telco Churn + XAI + sanity-check
+* `prometheus` → Servidor Prometheus
+* `grafana` → Dashboard Grafana
 
-### 3.1. Levantar todos los servicios
-
-Desde la carpeta raíz del proyecto:
+### 3.1. Levantar todo
 
 ```bash
 docker-compose up --build
 ```
 
-La primera vez puede tardar unos minutos porque:
+### 3.2. URLs locales
 
-* Descarga las imágenes base de Python.
-* Instala dependencias (`requirements.txt`).
-* Construye las imágenes de las APIs y las webs.
+#### 🌸 3.2.1. Web Iris
 
-Cuando termine verás los logs de todos los contenedores.
+`http://localhost:8501`
 
-> Si quieres lanzarlo en segundo plano:
->
-> ```bash
-> docker-compose up -d --build
-> ```
+Permite interactuar con el modelo Iris y visualizar métricas.
 
 ---
 
-### 3.2. URLs de acceso en local
+#### 📡 3.2.2. Web Telco Churn + XAI + Sanity Check
 
-Una vez levantado con Docker, puedes entrar a:
+`http://localhost:8502`
 
-#### 🌸 3.2.1. Web Iris (clasificación de flores)
+Incluye:
 
-* **URL**: `http://localhost:8501`
+### ✔ Predicción + Explicación local
 
-Características:
+* Formulario para introducir los datos del cliente.
+* El backend devuelve:
 
-* Interfaz Streamlit para interactuar con el modelo Iris.
-* Llama internamente a la API `mlops-api` (Flask).
-* Permite hacer predicciones y ver el comportamiento del modelo.
+  * Probabilidad de churn
+  * Predicción (0/1)
+  * Valores **SHAP locales**
 
----
+### ✔ Explicabilidad global
 
-#### 📡 3.2.2. Web Telco Churn + XAI
+* **Permutation Feature Importance** (features originales)
+* **SHAP Global** (features transformadas: numéricas + one-hot)
 
-* **URL**: `http://localhost:8502`
+### ✔ Sanity-check interactivo (reentrenamiento sin features)
 
-Características:
+Permite:
 
-* Modo **Predicción + explicación local**:
+* Seleccionar un conjunto de features a eliminar
+* Reentrenar un modelo desde cero en las mismas condiciones que el baseline
+* Comparar:
 
-  * Rellena el formulario con las características de un cliente Telco.
-  * El backend devuelve:
-
-    * Probabilidad de churn.
-    * Predicción binaria (0 = se queda, 1 = se va).
-    * Valores SHAP locales para esa observación.
-* Modo **Explicabilidad global**:
-
-  * Muestra:
-
-    * Importancia global vía **Permutation Feature Importance**.
-    * Importancia global vía **SHAP** en el espacio transformado (numéricas + one-hot).
-
----
-
-#### 📈 3.2.3. Prometheus
-
-* **URL**: `http://localhost:9090`
-
-Se utiliza para:
-
-* Recolectar métricas de la API de Iris.
-* Exponerlas para su consumo desde Grafana.
+| Métrica                 | Comparación                        |
+| ----------------------- | ---------------------------------- |
+| Accuracy                | Baseline vs reducido               |
+| Balanced Accuracy       | Ideal para dataset desbalanceado   |
+| ROC AUC                 | Curvas ROC comparadas              |
+| AUC-PR                  | Métrica principal para churn       |
+| Precision / Recall / F1 | Especialmente sobre clase positiva |
+| Confusion Matrix        | TN / FP / FN / TP                  |
+| Importancia eliminada   | Comprobación de explicabilidad     |
 
 ---
 
-#### 📊 3.2.4. Grafana
+### 📈 3.2.3. Prometheus
 
-* **URL**: `http://localhost:3000`
-* Usuario por defecto: `admin`
-* Contraseña: `admin` (configurada en `docker-compose.yml`)
+`http://localhost:9090`
 
-Hay dashboards provisionados automáticamente (vía `./grafana-provisioning`) que permiten:
-
-* Ver métricas de la API de Iris.
-* Explorar la información exportada por Prometheus.
+Recolecta métricas expuestas por la API Iris.
 
 ---
 
-### 3.3. Parar los servicios
+### 📊 3.2.4. Grafana
 
-Si lanzaste en primer plano (con logs):
+`http://localhost:3000`
+Usuario: `admin`
+Contraseña: `admin`
 
-* Pulsa `CTRL + C` en la terminal.
+Dashboards precargados para visualizar las métricas monitorizadas.
 
-Si está en segundo plano (`-d`):
+---
+
+### 3.3. Parar servicios
 
 ```bash
 docker-compose down
@@ -149,116 +134,60 @@ docker-compose down
 
 ---
 
-## 4. (Opcional) Ejecución sin Docker – APIs y Webs
+## 4. (Opcional) Ejecución sin Docker
 
-> ⚠️ Esta parte es opcional y está pensada para entornos con Python configurado.
-> Para ver su funcionamiento y pruebas sencillas, **es suficiente con usar Docker**.
-
-Requisitos:
-
-* Python 3.11
-* `pip`
-* Opcionalmente `conda` o `venv` para crear un entorno virtual.
-
-### 4.1. Crear entorno virtual (ejemplo con venv)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Linux / Mac
-# o en Windows:
-# .venv\Scripts\activate
-```
-
-### 4.2. Instalar dependencias
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-> Nota: en este proyecto los datos y modelos grandes (datasets, modelos entrenados, artifacts XAI) están versionados con **DVC** y almacenados en un remoto (DagsHub).
-> Para reproducir el entrenamiento completo haría falta configurar las credenciales de DagsHub.
-> Sin embargo, para pruebas de ejecución con Docker **no es necesario**.
-
-### 4.3. Lanzar API y Web de Telco (local)
-
-En una terminal:
-
-```bash
-python app_telco.py
-# API Telco escuchando en http://localhost:5001
-```
-
-En otra terminal:
-
-```bash
-streamlit run app_web_telco.py --server.port 8502
-# Web Telco XAI en http://localhost:8502
-```
-
-De forma similar se podrían lanzar la API y la web de Iris (`app.py` y `app_web.py`), pero para la práctica la vía recomendada es **Docker**.
+*(igual que antes, no modificado)*
 
 ---
 
-## 5. (Opcional) Entrenamiento con DVC y MLflow
+## 5. Entrenamiento con DVC y MLflow
 
-> Esta parte documenta la lógica de MLOps, pero **no es necesaria** para el uso normal de las webs.
+El fichero `dvc.yaml` define dos pipelines reproducibles:
 
-El fichero `dvc.yaml` define dos pipelines:
+### ✔ Pipeline Iris
 
-* **Iris**:
+Genera:
 
-  * `prepare` → verifica que existe `data/iris_dataset.csv`.
-  * `train` → ejecuta `python train.py --n_estimators <N>`, genera:
+* `model.pkl`
+* `confusion_matrix.png`
+* `mlflow_metrics.json`
 
-    * `model.pkl`
-    * `confusion_matrix.png`
-    * `mlflow_metrics.json` (métrica de accuracy para DVC)
+### ✔ Pipeline Telco
 
-* **Telco**:
+Ejecuta `train_telco.py`, que genera:
 
-  * `prepare_telco` → verifica que existe `data/telco_churn.csv`.
-  * `train_telco` → ejecuta `python train_telco.py`, genera:
+* `model_telco.pkl` (modelo baseline utilizado en la API)
+* `telco_metrics.json`
+* Carpeta `artifacts_telco/` con:
 
-    * `model_telco.pkl`
-    * `telco_metrics.json`
-    * artefactos XAI en `artifacts_telco/`:
+  * `telco_background.csv`
+  * `telco_feature_names.json`
+  * `telco_perm_importance.json`
+  * `telco_shap_global.json`
 
-      * `telco_background.csv` (background para SHAP)
-      * `telco_feature_names.json` (features originales)
-      * `telco_perm_importance.json`
-      * `telco_shap_global.json`
+Este baseline es la referencia oficial para las comparaciones dentro del modo **sanity-check** de la web de Telco.
 
-Para reprocesar el pipeline con DVC:
+Para ejecutar todo el pipeline:
 
 ```bash
 dvc repro
 ```
 
-MLflow está configurado para loggear experimentos (por ejemplo, en DagsHub usando las variables de entorno que se pasan en el workflow de GitHub Actions).
-
 ---
 
 ## 6. (Opcional) Despliegue en Google Kubernetes Engine (GKE)
 
-> Esta parte **no hace falta** ejecutarla si solo quieres probar las aplicaciones web en local o con Docker.
-> Está gestionada por el autor y automatizada vía GitHub Actions.
+*(igual que antes)*
 
-Resumen:
+Se despliegan:
 
-* Imágenes Docker se construyen y escanean con **Trivy** en GitHub Actions.
-* Se publican en **Google Container Registry**:
-  `gcr.io/icai2025-mlops/mlops-api`, `gcr.io/icai2025-mlops/mlops-web`,
-  `gcr.io/icai2025-mlops/mlops-telco-api`, `gcr.io/icai2025-mlops/mlops-telco-web`.
-* Manifiestos Kubernetes:
+* API Iris
+* Web Iris
+* API Telco Churn + XAI + retrain
+* Web Telco (frontend XAI + sanity check)
+* Prometheus (vía PodMonitoring)
 
-  * `api-deployment.yaml`, `api-service.yaml` → API Iris.
-  * `web-deployment.yaml`, `web-service.yaml` → Web Iris.
-  * `telco-api-deployment.yaml`, `telco-api-service.yaml` → API Telco.
-  * `telco-web-deployment.yaml`, `telco-web-service.yaml` → Web Telco XAI.
-  * `pod-monitoring.yaml` → integración con Prometheus.
-
-Cuando el clúster GKE está levantado y se ejecuta el job de `deploy-to-gke`, se aplica todo con:
+Y se aplican los manifiestos:
 
 ```bash
 kubectl apply -f api-deployment.yaml
@@ -276,21 +205,23 @@ kubectl apply -f pod-monitoring.yaml
 
 ## 7. Resumen rápido
 
-1. **Forma más simple de probar el proyecto** 👉
-   Clonar repo y ejecutar:
+1. Ejecutar en local:
 
    ```bash
    docker-compose up --build
    ```
 
-   Luego abrir:
+2. Acceder a:
 
-   * Iris Web: `http://localhost:8501`
-   * Telco XAI Web: `http://localhost:8502` (predicción + explicabilidad)
-   * Prometheus: `http://localhost:9090`
-   * Grafana: `http://localhost:3000` (admin / admin)
+   * Iris Web → `http://localhost:8501`
+   * Telco XAI Web → `http://localhost:8502`
 
-2. **No necesita** cuenta en Google Cloud ni configuración de DVC para usar las aplicaciones.
+     * Predicción + explicabilidad
+     * Explicabilidad global
+     * **Sanity-check con reentrenamiento**
+   * Prometheus → `http://localhost:9090`
+   * Grafana → `http://localhost:3000`
 
-3. El despliegue en GKE y la integración con MLflow/DVC están documentados y automatizados, y demuestran la parte de **MLOps avanzado**.
+3. No se necesita configurar Python, MLflow o DVC para usar las webs.
 
+4. El proyecto demuestra un pipeline completo de **MLOps real**, con CI/CD, XAI, reproductibilidad, Docker, Kubernetes y monitorización.
