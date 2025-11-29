@@ -3,36 +3,50 @@
 Este proyecto implementa un pipeline de **MLOps completo** con dos casos de uso:
 
 1. **Clasificación Iris** (Random Forest + métricas + monitorización Prometheus/Grafana).
-2. **Predicción de churn Telco** con **explicabilidad** (Permutation Importance + SHAP) y una **web de exploración XAI**, que permite:
+2. **Predicción de churn Telco** con **explicabilidad avanzada** (Permutation Importance + SHAP) y una **web de exploración XAI**, que permite:
 
    * Predicción con explicación local (SHAP).
    * Explicabilidad global (Permutation FI + SHAP Global).
    * Reentrenamiento rápido eliminando features seleccionadas.
-   * Sanity-checks completos de modelo:
+   * Sanity-checks completos:
 
-     * Comparación baseline vs modelo reentrenado sin ciertas features.
-     * Comparación baseline vs modelo entrenado con **etiquetas barajadas** (shuffle labels).
+     * Comparación baseline vs modelo reducido.
+     * Comparación baseline vs modelo entrenado con **etiquetas barajadas**.
+
+Además, el repositorio incluye:
+
+* **Notebook completo de análisis XAI:** `telco_xai.ipynb`, que reúne
+
+  * entrenamiento,
+  * todas las métricas,
+  * gráficos ROC y PR-AUC,
+  * explicabilidad global/local,
+  * sanity checks,
+  * interpretación detallada.
+
+* **Script de descarga de dataset:** `download_telco_data.py`
+  (útil si `data/telco_churn.csv` no existe).
 
 Incluye:
 
-* Versionado de datos y modelos con **DVC**.
-* Trazabilidad de experimentos con **MLflow** (remoto en DagsHub).
-* **APIs Flask** para Iris y Telco.
-* **Frontends Streamlit** para Iris y Telco XAI.
-* **Docker y docker-compose** para ejecución local.
-* **CI/CD con GitHub Actions + CML**.
-* **Despliegue automático en GKE** (opcional).
+* Versionado de datos/models con **DVC**
+* Trazabilidad con **MLflow**
+* APIs Flask (Iris + Telco)
+* Frontends Streamlit
+* Docker + docker-compose
+* CI/CD con GitHub Actions
+* Despliegue en **GKE** (opcional)
 
 ---
 
 ## 1. Requisitos
 
-Para ejecutar el proyecto desde cero en local:
+Para ejecutar todo en local:
 
 * Docker
 * Docker Compose
 
-No es necesario instalar Python, DVC ni MLflow para usar las aplicaciones web.
+No hace falta instalar Python, DVC o MLflow para usar las aplicaciones web.
 
 ---
 
@@ -45,111 +59,62 @@ cd mlops-practica-icai
 
 ---
 
-## 3. Ejecución rápida con Docker (recomendado)
+## 3. Dataset (si no está descargado)
 
-El fichero `docker-compose.yml` levanta los siguientes servicios:
+El dataset Telco se almacena en `data/telco_churn.csv`.
 
-* `mlops-api` → API Iris
-* `mlops-web` → Web Iris
-* `mlops-telco-api` → API Telco Churn + XAI + sanity checks
-* `mlops-telco-web` → Web Telco Churn + XAI + retrain + sanity checks
-* `prometheus` → Recolección de métricas
-* `grafana` → Dashboards provisionados
+Si no existe, puede descargarse automáticamente mediante:
 
-### 3.1. Levantar todo
+```bash
+python download_telco_data.py
+```
+
+---
+
+## 4. Ejecución rápida con Docker (recomendado)
+
+El `docker-compose.yml` levanta:
+
+* `mlops-api` (Iris API)
+* `mlops-web` (Iris Web)
+* `mlops-telco-api` (Telco API con XAI + retrain + sanity checks)
+* `mlops-telco-web` (Web Telco XAI)
+* `prometheus`
+* `grafana`
+
+### 4.1. Levantar todo
 
 ```bash
 docker-compose up --build
 ```
 
-### 3.2. URLs locales
+### 4.2. URLs principales
 
----
-
-### 🌸 3.2.1. Web Iris
+#### 🌸 Iris Web
 
 **[http://localhost:8501](http://localhost:8501)**
-Interfaz Streamlit para predicción y visualización.
 
----
-
-### 📡 3.2.2. Web Telco Churn + XAI + Sanity Checks
+#### 📡 Telco Web (XAI + Retrain + Sanity Checks)
 
 **[http://localhost:8502](http://localhost:8502)**
 
 Incluye:
 
-### ✔ Predicción + Explicación local
+* Predicción + SHAP local
+* Explicabilidad global (PFI + SHAP Global)
+* Reentrenamiento sin features
+* Sanity check de etiquetas barajadas
+* Gráficas comparativas ROC & PR-AUC
 
-* Probabilidad de churn
-* Predicción (0/1)
-* Valores SHAP locales
+#### 📈 Prometheus
 
----
+[http://localhost:9090](http://localhost:9090)
 
-### ✔ Explicabilidad global
+#### 📊 Grafana
 
-* **Permutation Feature Importance**
-* **SHAP Global**
+[http://localhost:3000](http://localhost:3000) (admin / admin)
 
----
-
-### ✔ Reentrenamiento rápido eliminando features
-
-Comparación detallada baseline vs reducido:
-
-* Accuracy
-* Balanced Accuracy
-* ROC AUC
-* AUC-PR
-* Precision/Recall/F1
-* Matriz de confusión
-* Curvas ROC comparadas
-* Curvas Precision–Recall comparadas
-* Importancia eliminada
-
----
-
-### ✔ Sanity-check: modelo entrenado con etiquetas barajadas (shuffle labels)
-
-Analiza el comportamiento del modelo cuando **no existe señal real**:
-
-* Entrenamiento con labels aleatorizados
-* Comparación directo con baseline con:
-
-  * Balanced accuracy ≈ 0.5
-  * ROC AUC ≈ 0.5
-  * AUC-PR igual a prevalencia
-  * Curvas ROC diagonales
-  * Curvas PR horizontales
-  * Matriz de confusión de predicciones aleatorias
-  * FI y SHAP sin estructura coherente
-
-Con esto se valida:
-
-* Ausencia de data leakage
-* Coherencia de explicabilidad
-* Que el baseline realmente aprende algo
-
----
-
-### 📈 3.2.3. Prometheus
-
-**[http://localhost:9090](http://localhost:9090)**
-
-Recolecta métricas expuestas por la API Iris.
-
----
-
-### 📊 3.2.4. Grafana
-
-**[http://localhost:3000](http://localhost:3000)**
-Usuario: `admin`
-Contraseña: `admin`
-
----
-
-### 3.3. Parar servicios
+### 4.3. Parar
 
 ```bash
 docker-compose down
@@ -157,62 +122,61 @@ docker-compose down
 
 ---
 
-## 4. (Opcional) Ejecución sin Docker – APIs y Webs
+## 5. Ejecución sin Docker (opcional)
 
-Esta sección permite ejecutar todo desde Python, aunque **Docker sigue siendo la vía recomendada**.
-
-### Requisitos
-
-* Python 3.11
-* pip
-* Opcional: conda o venv
-
----
-
-### 4.1. Crear entorno virtual (ejemplo con venv)
+### 5.1. Crear entorno
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate    # Linux / Mac
-# o en Windows:
-# .venv\Scripts\activate
+source .venv/bin/activate
 ```
 
----
-
-### 4.2. Instalar dependencias
+### 5.2. Instalar dependencias
 
 ```bash
-pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-> Nota: los datos y modelos se gestionan con **DVC**.
-> Para entrenamiento reproducible necesitarías credenciales de DagsHub.
-> Pero **para ejecutar las apps no es necesario**.
+### 5.3. Ejecutar APIs y Webs
 
----
-
-### 4.3. Lanzar a mano API + Web Telco
-
-Terminal 1 → API Telco:
+API Telco:
 
 ```bash
 python app_telco.py
-# API escuchando en http://localhost:5001
 ```
 
-Terminal 2 → Web Telco:
+Web Telco:
 
 ```bash
 streamlit run app_web_telco.py --server.port 8502
 ```
 
-Iris tiene equivalente (`app.py` y `app_web.py`), aunque no es necesario si se usa Docker.
+---
+
+## 6. Notebook completo de explicabilidad
+
+El repositorio incluye el notebook:
+
+### **`telco_xai.ipynb`**
+
+Este notebook contiene:
+
+* Carga y preprocesado del dataset
+* Entrenamiento de Logistic Regression y Random Forest
+* Métricas completas (Accuracy, Balanced Accuracy, ROC AUC, AUC-PR…)
+* Curvas ROC & Precision–Recall
+* Permutation Feature Importance
+* SHAP Global y Local (gráficos completos)
+* Sanity check eliminando features
+* Sanity check barajando etiquetas
+* Interpretación detallada de resultados
+
+Es el documento central para la parte de **Explicabilidad**.
 
 ---
 
-## 5. (Opcional) Entrenamiento con DVC y MLflow
+
+## 7. (Opcional) Entrenamiento con DVC y MLflow
 
 El fichero `dvc.yaml` contiene dos pipelines:
 
@@ -258,7 +222,7 @@ dvc repro
 
 ---
 
-## 6. (Opcional) Despliegue en Google Kubernetes Engine (GKE)
+## 8. (Opcional) Despliegue en Google Kubernetes Engine (GKE)
 
 Incluye:
 
@@ -284,26 +248,25 @@ kubectl apply -f pod-monitoring.yaml
 
 ---
 
-## 7. Resumen rápido
+## 9. Resumen rápido
 
-1. Ejecutar en local:
+1. Levantar todo:
 
-   ```bash
-   docker-compose up --build
-   ```
+```bash
+docker-compose up --build
+```
 
-2. Abrir:
+2. Entrar a:
 
-   * Iris Web → **[http://localhost:8501](http://localhost:8501)**
-   * Telco XAI Web → **[http://localhost:8502](http://localhost:8502)**
+* Iris Web → [http://localhost:8501](http://localhost:8501)
+* Telco Web (XAI) → [http://localhost:8502](http://localhost:8502)
+* Prometheus → [http://localhost:9090](http://localhost:9090)
+* Grafana → [http://localhost:3000](http://localhost:3000)
 
-     * Predicción + explicación local
-     * Explicabilidad global
-     * Reentrenamiento eliminando features
-     * **Sanity-check: shuffle labels**
-   * Prometheus → **[http://localhost:9090](http://localhost:9090)**
-   * Grafana → **[http://localhost:3000](http://localhost:3000)**
+3. Si falta el dataset:
 
-3. No requiere instalación local de Python, DVC o MLflow para usar las webs.
+```bash
+python download_telco_data.py
+```
 
-4. Demuestra un pipeline completo de **MLOps real**: reproducibilidad, CICD, Docker, Kubernetes, XAI y monitorización.
+4. El notebook `telco_xai.ipynb` contiene **todo el análisis XAI completo**.
