@@ -11,12 +11,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar aplicación y modelo
-COPY app.py .
+# Copiar código y modelo
+COPY src ./src
 COPY model.pkl .
 
 # Exponer puerto
 EXPOSE 5000
 
-# Ejecutar API
-CMD ["python", "app.py"]
+# Ejecutar API Iris
+CMD ["python", "src/iris/app.py"]

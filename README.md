@@ -139,16 +139,23 @@ pip install -r requirements.txt
 
 ### 5.3. Ejecutar APIs y Webs
 
-API Telco:
-
+# API Iris
 ```bash
-python app_telco.py
+python src/iris/app.py
 ```
 
-Web Telco:
-
+# Web Iris
 ```bash
-streamlit run app_web_telco.py --server.port 8502
+streamlit run src/iris/app_web.py --server.port 8501
+```
+
+# API Telco
+```bash
+python src/telco_xai/app_telco.py
+```
+# Web Telco
+```bash
+streamlit run src/telco_xai/app_web_telco.py --server.port 8502
 ```
 
 ---
@@ -235,15 +242,15 @@ Incluye:
 Cuando el clúster GKE está levantado y se ejecuta el job de deploy-to-gke, se aplica todo con:
 
 ```bash
-kubectl apply -f api-deployment.yaml
-kubectl apply -f api-service.yaml
-kubectl apply -f web-deployment.yaml
-kubectl apply -f web-service.yaml
-kubectl apply -f telco-api-deployment.yaml
-kubectl apply -f telco-api-service.yaml
-kubectl apply -f telco-web-deployment.yaml
-kubectl apply -f telco-web-service.yaml
-kubectl apply -f pod-monitoring.yaml
+kubectl apply -f k8s/api-deployment.yaml
+kubectl apply -f k8s/api-service.yaml
+kubectl apply -f k8s/web-deployment.yaml
+kubectl apply -f k8s/web-service.yaml
+kubectl apply -f k8s/telco-api-deployment.yaml
+kubectl apply -f k8s/telco-api-service.yaml
+kubectl apply -f k8s/telco-web-deployment.yaml
+kubectl apply -f k8s/telco-web-service.yaml
+kubectl apply -f k8s/pod-monitoring.yaml
 ```
 
 ---
@@ -266,7 +273,8 @@ docker-compose up --build
 3. Si falta el dataset:
 
 ```bash
-python download_telco_data.py
+python scripts/download_telco_data.py
+
 ```
 
 4. El notebook `telco_xai.ipynb` contiene **todo el análisis XAI completo**.

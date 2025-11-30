@@ -6,9 +6,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app_web_telco.py .
+COPY src ./src
 
 # La web Telco la servimos en 8502 para no chocar con la web Iris (8501)
 EXPOSE 8502
 
-CMD ["streamlit", "run", "app_web_telco.py", "--server.port=8502", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "src/telco_xai/app_web_telco.py", "--server.port=8502", "--server.address=0.0.0.0"]

@@ -8,7 +8,7 @@ stages:
       md5: ae244df326bd230685a3e47e0521ad56
       size: 2795
   train:
-    cmd: python train.py --n_estimators 300
+    cmd: python src/iris/train.py --n_estimators 300
     deps:
     - path: data/iris_dataset.csv
       hash: md5
@@ -20,7 +20,7 @@ stages:
       md5: 9c1bbec62ea4bd4c4129c5b93fa8c3fb
       size: 222
       isexec: true
-    - path: train.py
+    - path: src/iris/train.py
       hash: md5
       md5: 17e019fde9eba3c2ef462bb44ab0d9d0
       size: 2783
@@ -41,7 +41,7 @@ stages:
       isexec: true
     - path: model.pkl
       hash: md5
-      md5: f3c56e77f4fc9f14be8a7ca2da84ad8f
+      md5: 6cd9bebfaee0bb923e19d9c0a11ca878
       size: 530177
       isexec: true
   prepare_telco:
@@ -52,7 +52,7 @@ stages:
       md5: 0f9de68e012bd3aed5fa7cdc9fc421af
       size: 977501
   train_telco:
-    cmd: python train_telco.py
+    cmd: python src/telco_xai/train_telco.py
     deps:
     - path: data/telco_churn.csv
       hash: md5
@@ -64,7 +64,7 @@ stages:
       md5: 9c1bbec62ea4bd4c4129c5b93fa8c3fb
       size: 222
       isexec: true
-    - path: train_telco.py
+    - path: src/telco_xai/train_telco.py
       hash: md5
       md5: bbc1a67dce3c5cac24d72489ba7c06ac
       size: 10033
@@ -72,7 +72,7 @@ stages:
     outs:
     - path: model_telco.pkl
       hash: md5
-      md5: 7a5594699a63081c4682c2abd2025520
+      md5: 1055c9a42f2ff76c9214081df6db5419
       size: 16394415
       isexec: true
     - path: telco_metrics.json

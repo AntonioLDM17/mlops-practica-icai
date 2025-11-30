@@ -6,8 +6,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app_web.py .
+COPY src ./src
 
 EXPOSE 8501
 # Dirección 0.0.0.0 para servir fuera del contenedor y puerto fijo
-CMD ["streamlit", "run", "app_web.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "src/iris/app_web.py", "--server.port=8501", "--server.address=0.0.0.0"]

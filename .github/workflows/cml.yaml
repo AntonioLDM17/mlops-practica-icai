@@ -57,7 +57,7 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           DAGSHUB_API_KEY: ${{ secrets.DAGSHUB_API_KEY }}
         run: |
-          python3 train.py          # entrena Iris
+          python3 src/iris/train.py          # entrena Iris
           dvc repro                 # ejecuta también train_telco
           dvc push -r origin        # ⬅️ SUBE model_telco.pkl + artifacts_telco + telco_metrics.json
 
@@ -199,23 +199,23 @@ jobs:
       - name: Deploy to GKE
         run: |
           # API Iris (interno)
-          kubectl apply -f api-deployment.yaml
-          kubectl apply -f api-service.yaml
+          kubectl apply -f k8s/api-deployment.yaml
+          kubectl apply -f k8s/api-service.yaml
 
           # Web Iris (pública)
-          kubectl apply -f web-deployment.yaml
-          kubectl apply -f web-service.yaml
+          kubectl apply -f k8s/web-deployment.yaml
+          kubectl apply -f k8s/web-service.yaml
 
           # API Telco (interna)
-          kubectl apply -f telco-api-deployment.yaml
-          kubectl apply -f telco-api-service.yaml
+          kubectl apply -f k8s/telco-api-deployment.yaml
+          kubectl apply -f k8s/telco-api-service.yaml
 
           # Web Telco (pública, XAI)
-          kubectl apply -f telco-web-deployment.yaml
-          kubectl apply -f telco-web-service.yaml
+          kubectl apply -f k8s/telco-web-deployment.yaml
+          kubectl apply -f k8s/telco-web-service.yaml
 
           # PodMonitoring (solo Iris, de momento)
-          kubectl apply -f pod-monitoring.yaml
+          kubectl apply -f k8s/pod-monitoring.yaml
 
       - name: Show Services and Pods
         run: |

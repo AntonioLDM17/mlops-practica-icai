@@ -5,9 +5,9 @@ stages:
       - data/iris_dataset.csv
 
   train:
-    cmd: python train.py --n_estimators ${train.n_estimators}
+    cmd: python src/iris/train.py --n_estimators ${train.n_estimators}
     deps:
-      - train.py
+      - src/iris/train.py
       - requirements.txt
       - data/iris_dataset.csv
     outs:
@@ -24,9 +24,9 @@ stages:
       - data/telco_churn.csv
 
   train_telco:
-    cmd: python train_telco.py
+    cmd: python src/telco_xai/train_telco.py
     deps:
-      - train_telco.py
+      - src/telco_xai/train_telco.py
       - requirements.txt
       - data/telco_churn.csv
     outs:
