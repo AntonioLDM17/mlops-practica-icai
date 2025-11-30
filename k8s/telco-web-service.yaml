@@ -4,7 +4,6 @@ metadata:
   name: mlops-telco-web-service
 spec:
   type: LoadBalancer
-  loadBalancerIP: 34.79.10.103
   selector:
     app: mlops-telco-web
   ports:
