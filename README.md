@@ -1,83 +1,84 @@
 # **MLOps + XAI – Iris + Telco Churn (XAI, CI/CD, GKE)**
 
-Este repositorio implementa un sistema completo de **MLOps + Explicabilidad** con dos proyectos:
+This repository implements a complete **MLOps + Explainability** system with two projects:
 
 ---
 
-## **🌸 1. Iris – MLOps clásico**
+## **🌸 1. Iris – Classic Mlops**
 
-* Entrenamiento con **RandomForest**
-* Versionado con **DVC**
-* Tracking con **MLflow**
-* API Flask con métricas Prometheus
-* Web Streamlit
-* Monitorización con **Prometheus + Grafana** (local)
-* Despliegue automático en **GKE**
+* Trained with **RandomForest**
+* Versioned with **DVC**
+* Tracked with **MLflow**
+* Flask API with Prometheus metrics
+* Streamlit Web
+* Monitoring with **Prometheus + Grafana** (local)
+* Automatic deployment on **GKE**
 
 ---
 
-## **📡 2. Telco Churn – Explicabilidad avanzada (XAI)**
+## **📡 2. Telco Churn – Advanced Explainability (XAI)**
 
-Incluye:
+Includes:
 
-### ✔ Explicabilidad Global
-
+### ✔ Global Explainability
 * **Permutation Feature Importance**
 * **SHAP Global (post-one-hot)**
 
-### ✔ Explicabilidad Local
-
-* SHAP local para cada cliente
+### ✔ Local Explainability
+* SHAP local for each client
 
 ### ✔ Sanity Checks
 
-* Reentrenamiento sin features seleccionadas
-* Comparación estructural baseline vs reducido
-* Entrenamiento con **etiquetas barajadas** (comprobación de señal)
-* Tablas comparativas, curvas ROC & Precision–Recall
+* Retraining without selected features
+* Structural comparison baseline vs reduced
+* Training with **shuffled labels** (signal check)
+* Comparative tables, ROC & Precision–Recall curves
 
-### ✔ Web XAI completa en Streamlit
+### ✔ Complete XAI Web in Streamlit
 
-Con los 4 modos:
+With the 4 modes:
 
-* Predicción + explicación local
-* Explicabilidad global
-* Reentrenamiento sin atributos
-* Sanity check de etiquetas barajadas
+* Prediction + local explanation
+* Global explainability
+* Retraining without selected features
+* Sanity check with shuffled labels
 
 ---
 
-# 📁 **Estructura actual del repositorio**
+# 📁 **Current repository structure**
 
 ```
 mlops-practica-icai/
 │
-├── data/                    # Datos versionados por DVC (Iris + Telco)
+├── data/                    # Data versioned by DVC (Iris + Telco)
 │   ├── iris_dataset.csv
 │   └── telco_churn.csv
 │
 ├── src/
-│   ├── iris/               # Código Iris (MLOps clásico)
+│   ├── iris/               # Iris code (Classic MLOps)
 │   │   ├── app.py
 │   │   ├── app_web.py
 │   │   └── train.py
 │   │
-│   └── telco_xai/          # Código Telco (Explicabilidad completa)
+│   └── telco_xai/          # Telco code (Complete Explainability)
 │       ├── app_telco.py
 │       ├── app_web_telco.py
 │       └── train_telco.py
 │
 ├── scripts/
-│   └── download_telco_data.py   # Descarga desde Kaggle (opcional)
+│   └── download_telco_data.py   # Download from Kaggle (optional)
 │
 ├── notebooks/
-│   └── telco_xai.ipynb     # Notebook completo de análisis XAI
+│   └── telco_xai.ipynb     # Complete XAI analysis notebook
+│
+├── report/
+│   └── Report_XAI_Antonio_Lorenzo.pdf     # report
 │
 ├── monitoring/             # Prometheus + Grafana (local)
 │   ├── prometheus.yaml
 │   └── grafana-provisioning/
 │
-├── k8s/                    # Manifiestos Kubernetes (GKE)
+├── k8s/                    # Kubernetes manifests (GKE)
 │   ├── api-deployment.yaml
 │   ├── api-service.yaml
 │   ├── web-deployment.yaml
@@ -93,7 +94,7 @@ mlops-practica-icai/
 ├── Dockerfile.telco        # Telco API
 ├── Dockerfile.web_telco    # Telco Web
 │
-├── docker-compose.yml      # Ejecución local completa
+├── docker-compose.yml      # Complete local execution
 ├── dvc.yaml                # Pipelines Iris + Telco
 ├── dvc.lock
 ├── requirements.txt
@@ -102,16 +103,16 @@ mlops-practica-icai/
 
 ---
 
-# 1. 🔧 Requisitos
+# 1. 🔧 Requirements
 
-Para ejecución local:
+For local execution:
 
 ✔ Docker
 ✔ Docker Compose
 
-> No necesitas instalar Python ni dependencias si usas `docker-compose`.
+> You do not need to install Python or dependencies if you use `docker-compose`.
 
-Para desarrollo:
+For development:
 
 ✔ Python 3.11
 ✔ DVC
@@ -119,7 +120,7 @@ Para desarrollo:
 
 ---
 
-# 2. 📥 Clonar el repositorio
+# 2. 📥 Clone the repository
 
 ```bash
 git clone https://github.com/AntonioLDM17/mlops-practica-icai.git
@@ -128,51 +129,51 @@ cd mlops-practica-icai
 
 ---
 
-# 3. 📊 Dataset Telco (si no existe)
+# 3. 📊 Telco Dataset (if not exists)
 
-El dataset principal debe estar en:
+The main dataset should be in:
 
 ```
 data/telco_churn.csv
 ```
 
-Si falta:
+If missing:
 
 ```bash
 export PYTHONPATH=.
 python -m scripts.download_telco_data
 ```
 
-Después:
+After:
 
 ```bash
-cp "<ruta_kaggle>/WA_Fn-UseC_-Telco-Customer-Churn.csv" data/telco_churn.csv
+cp "<kaggle_path>/WA_Fn-UseC_-Telco-Customer-Churn.csv" data/telco_churn.csv
 dvc add data/telco_churn.csv
 dvc push
 ```
 
 ---
 
-# 4. 🚀 Ejecución rápida con Docker Compose
+# 4. 🚀 Quick start with Docker Compose
 
 ```bash
 docker-compose up --build
 ```
 
-Se levantarán:
+They will be available:
 
-| Servicio          | Puerto | Descripción     |
+| Service          | Port | Description     |
 | ----------------- | ------ | --------------- |
-| `mlops-api`       | 5000   | API Iris        |
-| `mlops-web`       | 8501   | Web Iris        |
-| `mlops-telco-api` | 5001   | API Telco + XAI |
-| `mlops-telco-web` | 8502   | Web Telco XAI   |
-| `prometheus`      | 9090   | Métricas Iris   |
+| `mlops-api`       | 5000   | Iris API        |
+| `mlops-web`       | 8501   | Iris Web        |
+| `mlops-telco-api` | 5001   | Telco + XAI API |
+| `mlops-telco-web` | 8502   | Telco XAI Web   |
+| `prometheus`      | 9090   | Iris Metrics    |
 | `grafana`         | 3000   | Dashboards      |
 
 ---
 
-## 4.1. 🌐 URLs locales
+## 4.1. 🌐 Local URLs
 
 ### Iris Web
 
@@ -193,9 +194,9 @@ Se levantarán:
 
 ---
 
-# 5. 🧪 Ejecución sin Docker (opcional)
+# 5. 🧪 Running without Docker (optional)
 
-Crear entorno:
+Create environment:
 
 ```bash
 python -m venv .venv
@@ -203,7 +204,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Ejecutar:
+Run:
 
 ```bash
 python src/iris/app.py
@@ -215,39 +216,37 @@ streamlit run src/telco_xai/app_web_telco.py --server.port 8502
 
 ---
 
-# 6. 📘 Notebook de explicabilidad
+# 6. 📘 Explainability Notebook
 
-Ubicación:
+Location:
 
 ```
 notebooks/telco_xai.ipynb
 ```
 
-Contiene:
+Contains:
 
-✔ Entrenamiento completo
-✔ Explicabilidad global (PFI + SHAP)
-✔ Explicabilidad local
+✔ Complete training
+✔ Global explainability (PFI + SHAP)
+✔ Local explainability
 ✔ Sanity checks
-✔ Curvas ROC y PR-AUC
-✔ Interpretación final
+✔ ROC and PR-AUC curves
+✔ Final interpretation
 
 ---
 
-# 7. 🔄 Pipelines con DVC + MLflow
-
+# 7. 🔄 Pipelines with DVC + MLflow
 ## Iris Pipeline
 
-**Entrada:** `data/iris_dataset.csv`
-**Salida:**
-
+**Input:** `data/iris_dataset.csv`
+**Output:**
 * `model.pkl`
 * `confusion_matrix.png`
 * `mlflow_metrics.json`
 
 ## Telco Churn Pipeline
 
-**Salida:**
+**Output:**
 
 * `model_telco.pkl`
 * `telco_metrics.json`
@@ -258,7 +257,7 @@ Contiene:
   * Permutation FI
   * SHAP Global Importance
 
-Ejecutar:
+Run:
 
 ```bash
 dvc repro
@@ -266,54 +265,53 @@ dvc repro
 
 ---
 
-# 8. ☁ Despliegue en Google Kubernetes Engine (GKE)
+# 8. ☁ Deployment on Google Kubernetes Engine (GKE)
 
-Los manifiestos están en:
+Manifests are in:
 
 ```
 k8s/
 ```
 
-Despliegue manual:
+Manual deployment:
 
 ```bash
 kubectl apply -f k8s/
 ```
 
-Incluye:
+Includes:
 
-✔ API Iris
-✔ Web Iris
-✔ API Telco + XAI
-✔ Web Telco
+✔ Iris API
+✔ Iris Web
+✔ Telco + XAI API
+✔ Telco Web
 ✔ PodMonitoring (Prometheus Iris)
 
-Con GitHub Actions, el job `deploy-to-gke` hace todo automáticamente.
+With GitHub Actions, the `deploy-to-gke` job does everything automatically.
 
 ---
 
-# 9. 🎯 Resumen rápido
-
-### 1️⃣ Ejecutar todo en local:
+# 9. 🎯 Quick summary
+### 1️⃣ Run everything locally:
 
 ```bash
 docker-compose up --build
 ```
 
-### 2️⃣ Acceder:
+### 2️⃣ Access:
 
 * Iris Web: [http://localhost:8501](http://localhost:8501)
 * Telco XAI Web: [http://localhost:8502](http://localhost:8502)
 * Prometheus: [http://localhost:9090](http://localhost:9090)
 * Grafana: [http://localhost:3000](http://localhost:3000)
 
-### 3️⃣ Reproducir pipelines:
+### 3️⃣ Reproduce pipelines:
 
 ```bash
 dvc repro
 ```
 
-### 4️⃣ Descargar dataset si falta:
+### 4️⃣ Download dataset if missing:
 
 ```bash
 export PYTHONPATH=.
