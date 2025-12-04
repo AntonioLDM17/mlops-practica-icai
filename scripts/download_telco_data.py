@@ -3,28 +3,27 @@ import shutil
 import os
 
 """
-Descarga el dataset Telco Customer Churn desde Kaggle
-y lo copia automáticamente a data/telco_churn.csv.
+Download Telco Customer Churn Dataset from Kaggle
+and copy it to data/telco_churn.csv
 
-No requiere API key.
+No API key required.
 """
 
-print("📥 Descargando dataset Telco desde Kaggle...")
+print("📥 Downloading Telco dataset from Kaggle...")
 path = kagglehub.dataset_download("blastchar/telco-customer-churn")
 
-print("📁 Dataset descargado en:", path)
+print("📁 Dataset downloaded at:", path)
 
-# Archivos que vienen en el dataset
+# Files included in the dataset
 csv_path = os.path.join(path, "WA_Fn-UseC_-Telco-Customer-Churn.csv")
 
 if not os.path.exists(csv_path):
-    raise FileNotFoundError("❌ No se encontró el CSV dentro del dataset descargado.")
-
-# Crear carpeta data si no existe
+    raise FileNotFoundError("❌ CSV not found inside the downloaded dataset.")
+# Create data folder if it doesn't exist
 os.makedirs("data", exist_ok=True)
 
-# Copiar archivo
+# Copy file
 dest = "data/telco_churn.csv"
 shutil.copy(csv_path, dest)
 
-print(f"✅ Archivo copiado a {dest}")
+print(f"✅ File copied to {dest}")
