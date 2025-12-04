@@ -24,66 +24,65 @@ from sklearn.metrics import (
     precision_recall_curve,
 )
 
-# ================== CARGA DE MODELO Y ARTEFACTOS XAI ==================
+# 1) MODEL LOADING AND PREPARATION
 
-# Modelo entrenado (Pipeline: preprocesador + RandomForest)
+# Trained model (Pipeline: preprocessor + RandomForest)
 try:
     model_telco = joblib.load("model_telco.pkl")
 except FileNotFoundError:
     print("ERROR: 'model_telco.pkl' no encontrado. Ejecuta dvc repro / train_telco.py")
     model_telco = None
 
-# Componentes del pipeline
+# Pipeline components
 pre = model_telco.named_steps["pre"] if model_telco is not None else None
 rf = model_telco.named_steps["clf"] if model_telco is not None else None
 
-# Nombres de features originales (antes del preprocesado)
+# Original feature names (before preprocessing)
 with open("artifacts_telco/telco_feature_names.json") as f:
     TELCO_FEATURE_NAMES = json.load(f)
 
-# Background crudo para SHAP (los mismos features que TELCO_FEATURE_NAMES)
+# Raw background for SHAP (same features as TELCO_FEATURE_NAMES)
 background_df = pd.read_csv("artifacts_telco/telco_background.csv")
 
-# Transformamos el background con el preprocesador
+# Transform the background with the preprocessor
 background_trans = pre.transform(background_df)
 if hasattr(background_trans, "toarray"):
     background_trans = background_trans.toarray()
 
-# Nombres de features después del preprocesado (incluye one-hot de categóricas)
+# Feature names after preprocessing (includes one-hot encoded categoricals)
 try:
     TRANSFORMED_FEATURE_NAMES = pre.get_feature_names_out().tolist()
 except AttributeError:
     TRANSFORMED_FEATURE_NAMES = [f"feature_{i}" for i in range(background_trans.shape[1])]
 
-# Cargamos importancias globales calculadas en entrenamiento
+# Load global importances calculated during training
 with open("artifacts_telco/telco_perm_importance.json") as f:
     PERM_IMPORTANCE = json.load(f)
 
 with open("artifacts_telco/telco_shap_global.json") as f:
     SHAP_GLOBAL_IMPORTANCE = json.load(f)
 
-# Creamos el explainer de SHAP sobre el RandomForest y el background transformado
+# Create the SHAP explainer on the RandomForest and the transformed background
 explainer = shap.TreeExplainer(rf)
 
-# ================== INICIALIZAR APP FLASK ==================
-
+# 2) FLASK APP DEFINITION
 app = Flask(__name__)
 
 
 @app.get("/telco/health")
 def telco_health():
-    """Healthcheck simple para la API Telco."""
+    """Simple healthcheck for the Telco API."""
     return jsonify(status="ok", model_loaded=model_telco is not None), 200
 
 
-# ================== ENDPOINT: PREDICCIÓN ==================
+# 3) PREDICTION ENDPOINT
 
 @app.post("/telco/predict")
 def telco_predict():
     """
-    Espera un JSON con un diccionario de features Telco.
+    Expects a JSON with a dictionary of Telco features.
 
-    Ejemplo de body:
+    Example body:
     {
       "features": {
         "gender": "Female",
@@ -115,7 +114,7 @@ def telco_predict():
         data = request.get_json(force=True)
         features_dict = data["features"]
 
-        # Aseguramos el orden de columnas usando TELCO_FEATURE_NAMES
+        # Ensure column order using TELCO_FEATURE_NAMES
         x_df = pd.DataFrame([features_dict], columns=TELCO_FEATURE_NAMES)
 
         proba = model_telco.predict_proba(x_df)[0, 1]
@@ -124,26 +123,26 @@ def telco_predict():
         return jsonify(
             {
                 "churn_probability": float(proba),
-                "churn_pred": pred,  # 1 = se va, 0 = se queda
+                "churn_pred": pred,  # 1 = churn, 0 = stay
             }
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
-# ================== ENDPOINT: EXPLICACIÓN LOCAL ==================
+# 4) LOCAL EXPLANATIONS ENDPOINT
 
 @app.post("/telco/explain")
 def telco_explain():
     """
-    Igual que /telco/predict pero devuelve explicaciones SHAP locales.
+    Same as /telco/predict but returns local SHAP explanations.
 
     Body:
     {
-      "features": { ... mismo formato que /telco/predict ... }
+      "features": { ... same format as /telco/predict ... }
     }
 
-    Respuesta:
+    Response:
     {
       "churn_probability": 0.83,
       "churn_pred": 1,
@@ -161,26 +160,26 @@ def telco_explain():
         data = request.get_json(force=True)
         features_dict = data["features"]
 
-        # DataFrame crudo en orden
+        # Raw DataFrame in order
         x_df = pd.DataFrame([features_dict], columns=TELCO_FEATURE_NAMES)
 
-        # Predicción
+        # Prediction
         proba = model_telco.predict_proba(x_df)[0, 1]
         pred = int(proba >= 0.5)
 
-        # Transformación con el preprocesador
+        # Transformation with the preprocessor
         x_trans = pre.transform(x_df)
         if hasattr(x_trans, "toarray"):
             x_trans = x_trans.toarray()
 
-        # Valores SHAP
+        # SHAP values
         shap_values = explainer(x_trans)
 
         vals = shap_values.values
-        # Para binaria, TreeExplainer suele devolver (n_samples, n_features)
-        # o (n_samples, n_features, n_classes). Lo manejamos:
+        # For binary classification, TreeExplainer usually returns (n_samples, n_features)
+        # or (n_samples, n_features, n_classes). We handle this:
         if vals.ndim == 3:
-            # Nos quedamos con la contribución de la clase "churn=1"
+            # We keep the contribution of the "churn=1" class
             contrib = vals[0, :, 1]
         else:
             contrib = vals[0, :]
@@ -205,14 +204,14 @@ def telco_explain():
         return jsonify({"error": str(e)}), 400
 
 
-# ================== ENDPOINT: EXPLICABILIDAD GLOBAL ==================
+# 5) GLOBAL EXPLANATIONS ENDPOINT
 
 @app.get("/telco/xai/global")
 def telco_xai_global():
     """
-    Devuelve las métricas de explicabilidad global:
-    - Permutation feature importance (en el espacio original de features)
-    - SHAP global (en el espacio transformado: num__..., cat__...)
+    Returns global explainability metrics:
+    - Permutation feature importance (in the original feature space)
+    - SHAP global (in the transformed space: num__..., cat__...)
     """
     return jsonify(
         {
@@ -222,24 +221,25 @@ def telco_xai_global():
     )
 
 
-# ================== ENDPOINT: REENTRENAMIENTO RÁPIDO ==================
+
+# 6) FAST RETRAINING ENDPOINT
 @app.post("/telco/retrain")
 def telco_retrain():
     """
-    Reentrena un modelo rápido eliminando ciertas features y compara
-    con un modelo baseline que usa todas las variables.
-    Ahora:
-      - Baseline y reducido se entrenan con la MISMA receta que train_telco.py:
-        * Pipeline: preprocesado (StandardScaler + OneHotEncoder) + RandomForest
+    Retrains a fast model by dropping certain features and compares
+    it with a baseline model that uses all variables.
+    Now:
+      - Baseline and reduced are trained with the SAME recipe as train_telco.py:
+        * Pipeline: preprocessing (StandardScaler + OneHotEncoder) + RandomForest
         * class_weight="balanced"
-        * GridSearchCV con el mismo param_grid
+        * GridSearchCV with the same param_grid
         * scoring="average_precision"
     """
     try:
         data = request.get_json(force=True)
         drop_features = data.get("drop_features", [])
 
-        # ---------- 1) Cargar dataset completo ----------
+        # 6.1) Load full dataset
         df = pd.read_csv("data/telco_churn.csv")
         df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
         df = df.dropna(subset=["TotalCharges"])
@@ -249,8 +249,8 @@ def telco_retrain():
 
         n_features_original = X_full.shape[1]
 
-        # ---------- 2) Split común para baseline y reducido ----------
-        # Mismas condiciones que en train_telco.py
+        # 6.2) Common split for baseline and reduced
+        # Same conditions as in train_telco.py
         X_train_full, X_test_full, y_train, y_test = train_test_split(
             X_full,
             y,
@@ -259,14 +259,14 @@ def telco_retrain():
             stratify=y,
         )
 
-        # Param grid y receta de RF idénticos a train_telco.py
+        # Param grid and RF recipe identical to train_telco.py
         param_grid = {
             "clf__n_estimators": [200, 300],
             "clf__max_depth": [None, 10],
             "clf__min_samples_leaf": [1, 2],
         }
 
-        # ---------- 3) Modelo BASELINE (todas las features) ----------
+        # 6.3) BASELINE model (all features)
         cat_full = X_full.select_dtypes(include=["object"]).columns.tolist()
         num_full = X_full.select_dtypes(exclude=["object"]).columns.tolist()
 
@@ -334,7 +334,7 @@ def telco_retrain():
             },
         }
 
-        # ---------- 4) Modelo REDUCIDO (sin algunas features) ----------
+        # 6.4) REDUCED model (without some features)
         X_reduced = X_full.copy()
         for f in drop_features:
             if f in X_reduced.columns:
@@ -364,7 +364,7 @@ def telco_retrain():
             ]
         )
 
-        # Reusamos el MISMO split (mismas filas) para el reducido
+        # Reuse the SAME split (same rows) for the reduced
         X_train_red, X_test_red, _, _ = train_test_split(
             X_reduced,
             y,
@@ -418,7 +418,7 @@ def telco_retrain():
             },
         }
 
-        # ---------- 5) Impacto XAI: suma de importancia global eliminada ----------
+        # 6.5) XAI impact: sum of global importance removed
         importance_removed_sum = float(
             sum(PERM_IMPORTANCE.get(f, 0.0) for f in drop_features)
         )
@@ -436,24 +436,25 @@ def telco_retrain():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400
-# ================== ENDPOINT: SANITY-CHECK LABELS BARAJADAS ==================
+
+# 7) SANITY-CHECK LABELS SHUFFLED ENDPOINT
 
 @app.post("/telco/sanity/shuffle_labels")
 def telco_sanity_shuffle_labels():
     """
-    Sanity-check: entrena dos modelos con la MISMA receta que train_telco.py:
-      - baseline: etiquetas reales
-      - shuffled: etiquetas barajadas (sin relación con X)
+    Sanity-check: train two models with the SAME recipe as train_telco.py:
+      - baseline: real labels
+      - shuffled: shuffled labels (no relation to X)
 
-    Si el modelo está aprendiendo señal real:
-      - El baseline debería tener métricas claramente mejores (AUC > 0.7, AUC-PR > prevalencia, etc.).
-      - El modelo con etiquetas barajadas debería acercarse a azar:
+    If the model is learning real signal:
+      - The baseline should have clearly better metrics (AUC > 0.7, AUC-PR > prevalence, etc.).
+      - The model with shuffled labels should approach random:
           * ROC AUC ≈ 0.5
-          * AUC-PR ≈ prevalencia de churn
+          * AUC-PR ≈ churn prevalence
           * balanced_accuracy ≈ 0.5
     """
     try:
-        # ---------- 1) Cargar dataset completo ----------
+        # 7.1) Load full dataset
         df = pd.read_csv("data/telco_churn.csv")
         df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
         df = df.dropna(subset=["TotalCharges"])
@@ -463,7 +464,7 @@ def telco_sanity_shuffle_labels():
 
         prevalence = float(y.mean())
 
-        # ---------- 2) Train/test split como en train_telco.py ----------
+        # 7.2) Train/test split as in train_telco.py ----------
         X_train, X_test, y_train, y_test = train_test_split(
             X,
             y,
@@ -472,7 +473,7 @@ def telco_sanity_shuffle_labels():
             stratify=y,
         )
 
-        # Columnas para el preprocesador
+        # Columns for the preprocessor
         cat_cols = X.select_dtypes(include=["object"]).columns.tolist()
         num_cols = X.select_dtypes(exclude=["object"]).columns.tolist()
 
@@ -489,7 +490,7 @@ def telco_sanity_shuffle_labels():
             "clf__min_samples_leaf": [1, 2],
         }
 
-        # ---------- 3) Modelo BASELINE (etiquetas reales) ----------
+        # 7.3) BASELINE MODEL (real labels) ----------
         rf_base = RandomForestClassifier(
             random_state=42,
             class_weight="balanced",
@@ -527,7 +528,7 @@ def telco_sanity_shuffle_labels():
         tn_b, fp_b, fn_b, tp_b = confusion_matrix(y_test, y_pred_base).ravel()
         fpr_b, tpr_b, _ = roc_curve(y_test, y_proba_base)
 
-        # Curva Precision-Recall baseline
+        # Baseline Precision-Recall curve
         prec_curve_b, rec_curve_b, _ = precision_recall_curve(y_test, y_proba_base)
 
 
@@ -556,8 +557,8 @@ def telco_sanity_shuffle_labels():
         }
 
 
-        # ---------- 4) Modelo con LABELS BARAJADAS ----------
-        # Barajamos SOLO y_train, manteniendo X_train intacto.
+        # 7.4) Model with SHUFFLED LABELS ----------
+        # Shuffle ONLY y_train, keeping X_train intact.
         y_train_shuffled = y_train.sample(frac=1.0, random_state=123)
 
         rf_shuff = RandomForestClassifier(
@@ -597,7 +598,7 @@ def telco_sanity_shuffle_labels():
         tn_s, fp_s, fn_s, tp_s = confusion_matrix(y_test, y_pred_shuff).ravel()
         fpr_s, tpr_s, _ = roc_curve(y_test, y_proba_shuff)
 
-        # Curva Precision-Recall shuffled
+        # Shuffled Precision-Recall curve
         prec_curve_s, rec_curve_s, _ = precision_recall_curve(y_test, y_proba_shuff)
 
         shuffled_stats = {

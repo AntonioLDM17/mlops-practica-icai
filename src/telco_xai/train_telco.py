@@ -28,29 +28,29 @@ import shap
 
 RANDOM_STATE = 42
 
-# ========= 1) CARGAR DATASET ===============
+# 1) LOAD DATASET
 df = pd.read_csv("data/telco_churn.csv")
 
-# Limpiar y preparar columnas numéricas
+# Clean and prepare numeric columns
 df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
 df = df.dropna(subset=["TotalCharges"])
 
-# Etiqueta binaria
+# Binary label
 y = df["Churn"].replace({"Yes": 1, "No": 0})
 X = df.drop(columns=["Churn", "customerID"])
 
-# Columnas numéricas y categóricas
+# Numeric and categorical columns
 categorical_features = X.select_dtypes(include=["object"]).columns.tolist()
 numeric_features = X.select_dtypes(exclude=["object"]).columns.tolist()
 
 feature_names = list(X.columns)
 
-# ========= 2) TRAIN/TEST SPLIT =============
+# 2) TRAIN/TEST SPLIT
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
 )
 
-# ========= 3) PREPROCESADO =================
+# 3) PREPROCESSING
 preprocessor = ColumnTransformer(
     transformers=[
         ("num", StandardScaler(), numeric_features),
@@ -58,7 +58,7 @@ preprocessor = ColumnTransformer(
     ]
 )
 
-# ========= 4) BASELINE: LOGISTIC REGRESSION =========
+# 4) BASELINE: LOGISTIC REGRESSION
 logreg_pipeline = Pipeline(
     steps=[
         ("pre", preprocessor),
@@ -66,7 +66,7 @@ logreg_pipeline = Pipeline(
             "clf",
             LogisticRegression(
                 max_iter=1000,
-                class_weight="balanced",   # dar más peso al churn
+                class_weight="balanced",   # give more weight to churn
             ),
         ),
     ]
@@ -97,7 +97,7 @@ with mlflow.start_run(run_name="telco_logreg"):
     mlflow.sklearn.log_model(logreg_pipeline, "model")
 
 
-# ========= 5) MODELO PRINCIPAL: RANDOM FOREST =========
+# 5) MAIN MODEL: RANDOM FOREST
 rf_pipeline = Pipeline(
     steps=[
         ("pre", preprocessor),
@@ -123,7 +123,7 @@ grid = GridSearchCV(
     rf_pipeline,
     param_grid=param_grid,
     cv=3,
-    scoring="average_precision",   # optimizamos AUC-PR (clase positiva)
+    scoring="average_precision",   # optimize AUC-PR (positive class)
     n_jobs=-1,
 )
 
@@ -152,10 +152,10 @@ with mlflow.start_run(run_name="telco_rf") as run:
     mlflow.log_metric("recall_pos", rec)                       
     mlflow.log_metric("f1_pos", f1)                            
 
-    # Guardar modelo de despliegue
+    # Save deployment model
     joblib.dump(best_model, "model_telco.pkl")
 
-    # Guardar métricas como JSON (para DVC)
+    # Save metrics as JSON (for DVC)
     with open("telco_metrics.json", "w") as f:
         json.dump(
             {
@@ -171,25 +171,25 @@ with mlflow.start_run(run_name="telco_rf") as run:
         )
 
 
-# ========= 6) DIRECTORIO DE ARTEFACTOS XAI =========
+# 6) XAI ARTIFACTS DIRECTORY
 os.makedirs("artifacts_telco", exist_ok=True)
 
-# Guardar nombres de features originales
+# Save original feature names
 with open("artifacts_telco/telco_feature_names.json", "w") as f:
     json.dump(feature_names, f)
 
-# ========= 7) BACKGROUND PARA SHAP =========
-# Muestra pequeña de X_train para usar como background
+# 7) BACKGROUND FOR SHAP
+# Small sample of X_train to use as background
 background = X_train.sample(
     n=min(200, len(X_train)),
     random_state=RANDOM_STATE
 )
-# Guardar el background en artifacts_telco
+# Save the background in artifacts_telco
 background.to_csv("artifacts_telco/telco_background.csv", index=False)
 
-# Intentar cargar el background desde CSV (generado en train_telco)
-# Si no existe (por ejemplo, en un despliegue donde DVC no lo haya materializado bien),
-# construimos un background por defecto en memoria para que la API NO reviente.
+# Try to load the background from CSV (generated in train_telco)
+# If it doesn't exist (for example, in a deployment where DVC hasn't materialized it properly),
+# we build a default background in memory so the API does NOT crash.
 try:
     background_df = pd.read_csv("artifacts_telco/telco_background.csv")
     print("✅ Background Telco cargado desde artifacts_telco/telco_background.csv")
@@ -218,13 +218,13 @@ except FileNotFoundError:
         "TotalCharges": 1000.0,
     }
 
-    # Construimos un DataFrame con las MISMAS columnas que usa el modelo
+    # Build a DataFrame with the SAME columns used by the model
     background_df = pd.DataFrame([default_bg])
 
-# Guardar el background en artifacts_telco (si no existía)
+# Save the background in artifacts_telco (if it didn't exist)
 background_df.to_csv("artifacts_telco/telco_background.csv", index=False)
 
-# ========= 8) PERMUTATION FEATURE IMPORTANCE (GLOBAL) =========
+# 8) PERMUTATION FEATURE IMPORTANCE (GLOBAL)
 perm_result = permutation_importance(
     best_model,
     X_test,
@@ -242,47 +242,47 @@ perm_importance = {
 with open("artifacts_telco/telco_perm_importance.json", "w") as f:
     json.dump(perm_importance, f)
 
-# ========= 9) SHAP GLOBAL (USANDO EL RANDOM FOREST DIRECTO) =========
-# Usamos TreeExplainer sobre el RandomForest ya entrenado,
-# y pasamos los datos YA TRANSFORMADOS por el preprocesador.
+# 9) SHAP GLOBAL (USING THE RAW RANDOM FOREST)
+# We use TreeExplainer on the already trained RandomForest,
+# and pass the data ALREADY TRANSFORMED by the preprocessor.
 
 pre = best_model.named_steps["pre"]
 rf = best_model.named_steps["clf"]
 
-# Subconjunto de test para SHAP (en crudo)
+# Test subset for SHAP (raw)
 X_test_sample = X_test.sample(
     n=min(500, len(X_test)),
     random_state=RANDOM_STATE
 )
 
-# Transformamos background y test sample con el preprocesador
+# Transform background and test sample with the preprocessor
 background_trans = pre.transform(background)
 X_test_sample_trans = pre.transform(X_test_sample)
 
-# Si son matrices dispersas (sparse), las convertimos a densas
+# If they are sparse matrices, convert to dense
 if hasattr(background_trans, "toarray"):
     background_trans = background_trans.toarray()
 if hasattr(X_test_sample_trans, "toarray"):
     X_test_sample_trans = X_test_sample_trans.toarray()
 
-# Feature names después del preprocesado (incluye one-hot de categóricas)
+# Feature names after preprocessing (includes one-hot of categoricals)
 try:
     transformed_feature_names = pre.get_feature_names_out()
 except AttributeError:
     transformed_feature_names = [f"feature_{i}" for i in range(X_test_sample_trans.shape[1])]
 
-# Creamos el explainer para el RandomForest
+# Create the explainer for the RandomForest
 explainer = shap.TreeExplainer(rf)
 
-# Calculamos valores SHAP sobre el test transformado
+# Calculate SHAP values on the transformed test set
 shap_values = explainer(X_test_sample_trans)
 
 vals = shap_values.values
 if vals.ndim == 3:
-    # Promediar sobre muestras y salidas
+    # Average over samples and outputs
     mean_abs_shap = np.mean(np.abs(vals), axis=(0, 2))
 else:
-    # Promediar solo sobre muestras
+    # Average only over samples
     mean_abs_shap = np.mean(np.abs(vals), axis=0)
 
 global_shap_importance = {

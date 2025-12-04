@@ -4,9 +4,9 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 
-# ================== CONFIG ==================
+# 1) CONFIGURATION OF THE TELCO API
 
-# URL de la API Telco (puedes cambiarla si corres en Docker/K8s)
+# API Telco URL (can be changed if running in Docker/K8s)
 API_URL = os.getenv("TELCO_API_URL", "http://localhost:5001")
 
 PREDICT_ENDPOINT = f"{API_URL}/telco/predict"
@@ -15,7 +15,7 @@ GLOBAL_XAI_ENDPOINT = f"{API_URL}/telco/xai/global"
 RETRAIN_ENDPOINT = f"{API_URL}/telco/retrain"
 SHUFFLE_SANITY_ENDPOINT = f"{API_URL}/telco/sanity/shuffle_labels"
 
-# ================== OPCIONES TELCO ==================
+# 2) TELCO OPTIONS AND DEFAULTS
 
 CATEGORICAL_OPTIONS = {
     "gender": ["Female", "Male"],
@@ -48,11 +48,11 @@ NUMERIC_DEFAULTS = {
 }
 
 
-# ================== HELPERS ==================
+# 3) HELPERS
 
 
 def build_features_dict():
-    """Construye el diccionario de features a partir de los widgets de Streamlit."""
+    """Builds a features dict from Streamlit inputs."""
     st.subheader("Datos del cliente")
 
     # Categóricas
@@ -108,7 +108,7 @@ def build_features_dict():
 
 
 def call_explain(features: dict):
-    """Llama a /telco/explain y devuelve el JSON o un error."""
+    """ Calls /telco/explain and returns the JSON or an error. """
     body = {"features": features}
     resp = requests.post(EXPLAIN_ENDPOINT, json=body)
     resp.raise_for_status()
@@ -128,13 +128,13 @@ def call_retrain(drop_list):
     return resp.json()
 
 def call_shuffle_sanity():
-    """Llama al sanity-check de etiquetas barajadas."""
+    """Calls the shuffled labels sanity-check."""
     resp = requests.post(SHUFFLE_SANITY_ENDPOINT, json={})
     resp.raise_for_status()
     return resp.json()
 
 
-# ================== UI STREAMLIT ==================
+# 4) STREAMLIT UI
 
 st.set_page_config(page_title="Telco Churn XAI", layout="wide")
 st.title("📡 Telco Churn – Predicción y Explicabilidad")
@@ -153,7 +153,7 @@ mode = st.sidebar.radio(
 
 st.sidebar.markdown(f"**API URL:** `{API_URL}`")
 
-# ============ MODO 1: PREDICCIÓN + EXPLICACIÓN LOCAL ============
+# MODE 1: PREDICTION + LOCAL EXPLANATION
 
 if mode == "Predicción + explicación local":
     st.markdown(
@@ -201,7 +201,7 @@ if mode == "Predicción + explicación local":
 
                 if shap_values:
                     df_shap = pd.DataFrame(shap_values)
-                    # Añadimos columna con el valor absoluto para ordenar
+                    # Add a column with the absolute value for sorting
                     df_shap["abs_value"] = df_shap["shap_value"].abs()
                     df_top = df_shap.sort_values("abs_value", ascending=False).head(10)
 
@@ -215,7 +215,7 @@ if mode == "Predicción + explicación local":
                     st.info("No se recibieron valores SHAP en la respuesta de la API.")
 
 
-# ============ MODO 2: EXPLICABILIDAD GLOBAL ============
+# MODE 2: GLOBAL EXPLANATION
 
 elif mode == "Explicabilidad global":
     st.markdown(
@@ -257,7 +257,7 @@ elif mode == "Explicabilidad global":
                     pd.DataFrame(list(shap_global.items()), columns=["feature", "importance"])
                     .sort_values("importance", ascending=False)
                 )
-                st.dataframe(df_shap_g.head(25))  # primeras 25 por claridad
+                st.dataframe(df_shap_g.head(25))  # first 25 for clarity
                 st.bar_chart(
                     df_shap_g.set_index("feature")["importance"].head(25),
                 )
@@ -265,7 +265,7 @@ elif mode == "Explicabilidad global":
                 st.info("No se recibió `shap_global_importance` de la API.")
 
 
-# ============ MODO 3: SANITY-CHECK REENTRENAMIENTO ============
+# MODE 3: SANITY-CHECK RETRAINING
 
 elif mode == "Sanity-check: reentrenar sin algunas features":
     st.markdown(
@@ -277,7 +277,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
     respecto al modelo baseline (todas las variables).
     """
     )
-        # Guía de métricas para interpretar el sanity check
+        # Metrics guide
     with st.expander("ℹ️ Guía rápida: ¿qué significa cada métrica?"):
         st.markdown(
             """
@@ -321,7 +321,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
         )
     st.markdown("---")
 
-    # --- Lista de features originales (las mismas columnas de X) ---
+    # --- List of original features (same columns as X) ---
     all_features = [
         "gender", "SeniorCitizen", "Partner", "Dependents", "tenure",
         "PhoneService", "MultipleLines", "InternetService", "OnlineSecurity",
@@ -346,7 +346,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
             baseline = result.get("baseline", {})
             retrained = result.get("retrained", {})
 
-            # ================== BLOQUE 1: RESUMEN NUMÉRICO ==================
+            # BLOCK 1: NUMERICAL SUMMARY
             st.write("## 1️⃣ Resumen numérico (baseline vs reducido)")
 
             metrics = [
@@ -403,7 +403,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                 )
             )
 
-            # >>> Warnings explicativos sobre colapso / desbalanceo / cambios fuertes <<<
+            # Warnings and interpretations
 
             acc_base = baseline.get("accuracy", 0.0)
             acc_red = retrained.get("accuracy", 0.0)
@@ -422,14 +422,14 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
             fn_r = conf_r.get("fn", 0)
             tn_r = conf_r.get("tn", 0)
 
-            # 0) Sin features eliminadas
+            # 0) No features removed
             if len(removed) == 0:
                 st.info(
                     "ℹ️ No has eliminado ninguna feature, por lo que los modelos "
                     "**baseline** y **reducido** deberían ser prácticamente idénticos."
                 )
 
-            # 1) Modelo colapsado: no detecta churn
+            # 1) Modelo colapses to no churn
             if tp_r == 0 and rec_red == 0:
                 st.warning(
                     "⚠️ El modelo reducido **no detecta ningún cliente que hace churn** (TP=0, recall=0). "
@@ -437,7 +437,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                     "Por eso la *accuracy* puede seguir siendo relativamente alta: el dataset está desbalanceado."
                 )
 
-            # 2) Accuracy alta pero balanced accuracy ≈ 0.5 y AUC-PR bajo
+            # 2) High accuracy but balanced accuracy ≈ 0.5 and low AUC-PR
             if acc_red > 0.7 and bal_red < 0.55 and aucpr_red < max(1e-6, aucpr_base * 0.7):
                 st.warning(
                     "⚠️ El modelo reducido mantiene una **accuracy relativamente alta**, "
@@ -446,7 +446,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                     "y ha dejado de aprender bien la clase de churn."
                 )
 
-            # 3) Accuracy tipo 'always no churn'
+            # 3) Accuracy like "always no churn" model
             if rec_red == 0 and 0.70 <= acc_red <= 0.76:
                 st.info(
                     "ℹ️ Una accuracy alrededor del **73%** es lo que obtendríamos con un modelo muy simple "
@@ -454,7 +454,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                     "y además tiene recall≈0, significa que ha perdido la capacidad de detectar churn."
                 )
 
-            # 4) Caídas importantes vs cambios pequeños
+            # 4) Significant drops vs small changes
             delta_auc = auc_red - auc_base
             delta_rec = rec_red - rec_base
 
@@ -470,12 +470,12 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                     "lo cual es coherente con las explicaciones globales."
                 )
 
-            # ================== BLOQUE 2: GRÁFICAS DE RENDIMIENTO ==================
+            # BLOCK 2: PERFORMANCE PLOTS
             st.write("## 2️⃣ Gráficas de rendimiento")
 
             col_roc, col_conf = st.columns(2)
 
-            # --- Curvas ROC ---
+            # ROC Curve
             with col_roc:
                 st.markdown("### Curva ROC (baseline vs reducido)")
 
@@ -514,7 +514,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                 else:
                     st.info("No se pudieron construir las curvas ROC.")
 
-            # --- Matriz de confusión / barras TP,FP,TN,FN ---
+            # Confusion matrix / TP, FP, TN, FN bars
             with col_conf:
                 st.markdown("### TP / FP / TN / FN")
 
@@ -541,7 +541,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
 
                 st.bar_chart(df_conf)
 
-            # ================== BLOQUE 3: IMPORTANCIA ELIMINADA VS CONSERVADA ==================
+            # BLOCK 3: IMPORTANCE OF REMOVED VS KEPT FEATURES
             st.write("## 3️⃣ Importancia de las variables eliminadas vs las que se mantienen")
 
             st.markdown(
@@ -555,7 +555,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                 """
             )
 
-            # Nota: aquí uso try/except sin 'else' para evitar el problema de sintaxis
+            # Note: here I use try/except to avoid syntax errors if the API call fails
             perm = {}
             try:
                 global_xai = call_global_xai()
@@ -566,14 +566,14 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
             if not perm:
                 st.info("No hay información de Permutation Feature Importance disponible.")
             else:
-                # Importancia de las features ELIMINADAS
+                # Importance of REMOVED features
                 removed_imp = {
                     f: perm.get(f, 0.0)
                     for f in removed
                     if f in perm
                 }
 
-                # Importancia de las features que SE QUEDAN
+                # Importance of KEPT features
                 kept_imp = {
                     f: imp
                     for f, imp in perm.items()
@@ -620,7 +620,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
                                 columns=["feature", "importance"],
                             )
                             .sort_values("importance", ascending=False)
-                            .head(10)  # Top 10 por claridad
+                            .head(10)  # Top 10 for clarity
                         )
 
                         st.dataframe(df_kept)
@@ -647,7 +647,7 @@ elif mode == "Sanity-check: reentrenar sin algunas features":
         except Exception as e:
             st.error(f"Error llamando al retrain: {e}")
 
-# ============ MODO 4: SANITY-CHECK LABELS BARAJADAS ============
+# MODE 4: SANITY-CHECK SHUFFLED LABELS
 
 elif mode == "Sanity-check: barajar etiquetas (modelo sin señal)":
     st.markdown(
@@ -738,7 +738,7 @@ elif mode == "Sanity-check: barajar etiquetas (modelo sin señal)":
                 )
             )
 
-            # Comentarios interpretativos rápidos
+            # Quick interpretative comments
             auc_base = baseline.get("roc_auc", 0.0)
             auc_sh = shuffled.get("roc_auc", 0.0)
             aucpr_base = baseline.get("auc_pr", 0.0)
@@ -765,7 +765,7 @@ elif mode == "Sanity-check: barajar etiquetas (modelo sin señal)":
 
             col_roc, col_pr = st.columns(2)
 
-            # --- Curvas ROC baseline vs shuffled ---
+            # ROC Curve baseline vs shuffled
             with col_roc:
                 st.markdown("### Curva ROC (baseline vs etiquetas barajadas)")
 
@@ -804,7 +804,7 @@ elif mode == "Sanity-check: barajar etiquetas (modelo sin señal)":
                 else:
                     st.info("No se pudieron construir las curvas ROC.")
 
-            # --- Curvas Precision–Recall baseline vs shuffled ---
+            # Precision-Recall Curve baseline vs shuffled
             with col_pr:
                 st.markdown("### Curva Precision–Recall (baseline vs etiquetas barajadas)")
 
